@@ -1,0 +1,1712 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎹 视唱练耳训练工具</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2em;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #e94560, #f5a623, #e94560);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 25px;
+            font-size: 0.95em;
+        }
+
+        /* 控制面板 */
+        .controls {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 20px 25px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+        .controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .controls-row:last-child { margin-bottom: 0; }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .control-group label {
+            font-size: 0.9em;
+            color: #aaa;
+            white-space: nowrap;
+        }
+        select, button {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.08);
+            color: #e0e0e0;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        select:hover, button:hover {
+            background: rgba(255,255,255,0.15);
+            border-color: rgba(255,255,255,0.3);
+        }
+        button.primary {
+            background: linear-gradient(135deg, #e94560, #c73659);
+            border: none;
+            color: white;
+            font-weight: 600;
+            padding: 10px 24px;
+            font-size: 1em;
+        }
+        button.primary:hover {
+            background: linear-gradient(135deg, #ff5a7a, #e94560);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(233,69,96,0.3);
+        }
+        button.secondary {
+            background: linear-gradient(135deg, #3a7bd5, #2c5aa0);
+            border: none;
+            color: white;
+            font-weight: 600;
+        }
+        button.secondary:hover {
+            background: linear-gradient(135deg, #4a8be5, #3a7bd5);
+        }
+        button.accent {
+            background: linear-gradient(135deg, #f5a623, #e0941a);
+            border: none;
+            color: white;
+            font-weight: 600;
+        }
+        button.accent:hover {
+            background: linear-gradient(135deg, #ffc04d, #f5a623);
+        }
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* 模式选择标签 */
+        .mode-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        .mode-tab {
+            padding: 12px 28px;
+            border-radius: 12px;
+            border: 2px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.03);
+            color: #888;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .mode-tab.active {
+            border-color: #e94560;
+            background: rgba(233,69,96,0.15);
+            color: #e94560;
+        }
+        .mode-tab:hover:not(.active) {
+            border-color: rgba(255,255,255,0.3);
+            color: #ccc;
+        }
+
+        /* 状态信息 */
+        .status-bar {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .status-text {
+            font-size: 1.1em;
+        }
+        .score-display {
+            display: flex;
+            gap: 20px;
+        }
+        .score-item {
+            text-align: center;
+        }
+        .score-item .value {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        .score-item .label {
+            font-size: 0.75em;
+            color: #888;
+        }
+        .correct .value { color: #4caf50; }
+        .wrong .value { color: #e94560; }
+        .total .value { color: #f5a623; }
+
+        /* 提示信息 */
+        .hint-area {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+            font-size: 1.1em;
+            min-height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .hint-area .hint-correct {
+            color: #4caf50;
+            font-weight: bold;
+        }
+        .hint-area .hint-wrong {
+            color: #e94560;
+        }
+        .hint-area .hint-info {
+            color: #f5a623;
+        }
+
+        /* 钢琴键盘 */
+        .piano-wrapper {
+            overflow-x: auto;
+            padding: 20px 0;
+            margin-bottom: 20px;
+        }
+        .piano {
+            display: flex;
+            position: relative;
+            margin: 0 auto;
+            height: 220px;
+            user-select: none;
+        }
+        .white-key {
+            width: 42px;
+            height: 200px;
+            background: linear-gradient(180deg, #f8f8f8 0%, #e8e8e8 85%, #d0d0d0 100%);
+            border: 1px solid #bbb;
+            border-radius: 0 0 6px 6px;
+            position: relative;
+            cursor: pointer;
+            z-index: 1;
+            transition: background 0.1s;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            padding-bottom: 8px;
+        }
+        .white-key:hover {
+            background: linear-gradient(180deg, #fff 0%, #f0f0f0 85%, #ddd 100%);
+        }
+        .white-key:active, .white-key.pressed {
+            background: linear-gradient(180deg, #e0e0e0 0%, #d0d0d0 85%, #c0c0c0 100%);
+        }
+        .white-key.highlight {
+            background: linear-gradient(180deg, #a8d8ea 0%, #88c8da 85%, #68b8ca 100%) !important;
+        }
+        .white-key.correct-key {
+            background: linear-gradient(180deg, #81c784 0%, #66bb6a 85%, #4caf50 100%) !important;
+        }
+        .white-key.wrong-key {
+            background: linear-gradient(180deg, #ef9a9a 0%, #e57373 85%, #ef5350 100%) !important;
+        }
+        .white-key.answer-key {
+            background: linear-gradient(180deg, #fff59d 0%, #fff176 85%, #ffee58 100%) !important;
+        }
+        .white-key.in-range {
+            border-color: #3a7bd5;
+            box-shadow: inset 0 -4px 0 #3a7bd5;
+        }
+        .white-key .key-label {
+            font-size: 0.65em;
+            color: #666;
+            pointer-events: none;
+        }
+
+        .black-key {
+            width: 28px;
+            height: 130px;
+            background: linear-gradient(180deg, #333 0%, #1a1a1a 85%, #000 100%);
+            border-radius: 0 0 4px 4px;
+            position: absolute;
+            z-index: 2;
+            cursor: pointer;
+            transition: background 0.1s;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            padding-bottom: 6px;
+        }
+        .black-key:hover {
+            background: linear-gradient(180deg, #444 0%, #2a2a2a 85%, #111 100%);
+        }
+        .black-key:active, .black-key.pressed {
+            background: linear-gradient(180deg, #555 0%, #3a3a3a 85%, #222 100%);
+        }
+        .black-key.highlight {
+            background: linear-gradient(180deg, #2196f3 0%, #1976d2 85%, #1565c0 100%) !important;
+        }
+        .black-key.correct-key {
+            background: linear-gradient(180deg, #388e3c 0%, #2e7d32 85%, #1b5e20 100%) !important;
+        }
+        .black-key.wrong-key {
+            background: linear-gradient(180deg, #c62828 0%, #b71c1c 85%, #8e0000 100%) !important;
+        }
+        .black-key.answer-key {
+            background: linear-gradient(180deg, #f9a825 0%, #f57f17 85%, #e65100 100%) !important;
+        }
+        .black-key.in-range {
+            box-shadow: inset 0 -3px 0 #3a7bd5;
+        }
+        .black-key .key-label {
+            font-size: 0.55em;
+            color: #aaa;
+            pointer-events: none;
+        }
+
+        /* 按键时显示的音名标签 */
+        .note-name-label {
+            position: absolute;
+            font-weight: bold;
+            pointer-events: none;
+            text-align: center;
+            z-index: 10;
+            animation: noteNameFadeIn 0.1s ease;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+        .white-key .note-name-label {
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.8em;
+            color: #1a1a2e;
+            background: rgba(255,255,255,0.85);
+            border-radius: 4px;
+            padding: 2px 5px;
+        }
+        .black-key .note-name-label {
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.7em;
+            color: #fff;
+            background: rgba(50,50,50,0.85);
+            border-radius: 4px;
+            padding: 2px 4px;
+        }
+        @keyframes noteNameFadeIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(5px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        /* 加载提示 */
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .loading-overlay.hidden { display: none; }
+        .loading-text {
+            font-size: 1.3em;
+            margin-bottom: 20px;
+        }
+        .loading-bar {
+            width: 300px;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .loading-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #e94560, #f5a623);
+            border-radius: 3px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        /* 折叠面板 - 高级设置 */
+        .accordion {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .accordion-header {
+            padding: 12px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #888;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        .accordion-header:hover { color: #ccc; background: rgba(255,255,255,0.03); }
+        .accordion-header .arrow { transition: transform 0.3s; }
+        .accordion-header.open .arrow { transform: rotate(180deg); }
+        .accordion-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .accordion-body.open {
+            max-height: 400px;
+        }
+        .accordion-content {
+            padding: 0 20px 15px 20px;
+        }
+
+        /* 操作历史 */
+        .history {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 15px 20px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .history h3 {
+            font-size: 0.9em;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        .history-item {
+            font-size: 0.85em;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .history-item:last-child { border-bottom: none; }
+        .history-item.correct { color: #4caf50; }
+        .history-item.wrong { color: #e94560; }
+
+        /* 键盘快捷键提示 */
+        .keyboard-hint {
+            text-align: center;
+            color: #555;
+            font-size: 0.8em;
+            margin-top: 10px;
+        }
+
+        /* 自由弹奏模式样式 */
+        .freeplay-hint {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+        }
+        .freeplay-hint .title {
+            font-size: 1.3em;
+            color: #f5a623;
+            margin-bottom: 8px;
+        }
+        .freeplay-hint .desc {
+            font-size: 0.9em;
+            color: #888;
+            line-height: 1.8;
+        }
+        .freeplay-hint .desc kbd {
+            display: inline-block;
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 0.9em;
+            font-family: monospace;
+            color: #e0e0e0;
+        }
+        .keyboard-map {
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .keyboard-map .km-key {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+        .keyboard-map .km-white {
+            background: rgba(255,255,255,0.15);
+            color: #e0e0e0;
+        }
+        .keyboard-map .km-black {
+            background: rgba(100,100,255,0.25);
+            color: #aaccff;
+        }
+        .freeplay-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        .freeplay-controls label {
+            color: #aaa;
+            font-size: 0.9em;
+        }
+        .octave-display {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #f5a623;
+            min-width: 40px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-text">🎹 正在加载钢琴采样...</div>
+        <div class="loading-bar">
+            <div class="loading-bar-fill" id="loadingBar"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1>🎹 视唱练耳训练工具</h1>
+        <p class="subtitle">练习音高识别，提升你的音乐听觉能力</p>
+
+        <!-- 模式选择 -->
+        <div class="mode-tabs">
+            <div class="mode-tab active" data-mode="free" onclick="switchMode('free')">
+                🎯 自由练习
+            </div>
+            <div class="mode-tab" data-mode="octave" onclick="switchMode('octave')">
+                🎼 八度辅助
+            </div>
+            <div class="mode-tab" data-mode="freeplay" onclick="switchMode('freeplay')">
+                🎹 自由弹奏
+            </div>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="controls">
+            <div class="controls-row">
+                <div class="control-group">
+                    <label>低音:</label>
+                    <select id="lowNote"></select>
+                </div>
+                <div class="control-group">
+                    <label>高音:</label>
+                    <select id="highNote"></select>
+                </div>
+                <button class="primary" id="btnNewQuestion" onclick="newQuestion()">
+                    🎲 出题
+                </button>
+                <button class="secondary" id="btnReplay" onclick="replayCurrentNote()" disabled>
+                    🔁 重听
+                </button>
+                <button class="accent" id="btnPlayOctave" onclick="playOctaveHint()" style="display:none;">
+                    🎼 播放八度参考
+                </button>
+                <button class="secondary" id="btnShowAnswer" onclick="showAnswer()" disabled>
+                    💡 显示答案
+                </button>
+            </div>
+        </div>
+
+        <!-- 高级设置（折叠） -->
+        <div class="accordion">
+            <div class="accordion-header" onclick="toggleAccordion(this)">
+                <span>⚙️ 高级设置</span>
+                <span class="arrow">▼</span>
+            </div>
+            <div class="accordion-body">
+                <div class="accordion-content">
+                    <div class="controls-row">
+                        <div class="control-group">
+                            <label>八度参考播放速度:</label>
+                            <select id="octaveSpeed">
+                                <option value="300">快速 (300ms)</option>
+                                <option value="500" selected>中速 (500ms)</option>
+                                <option value="700">慢速 (700ms)</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>八度参考模式:</label>
+                            <select id="octaveRefMode">
+                                <option value="chromatic">完整半音阶（12音）</option>
+                                <option value="diatonic" selected>自然音阶（7音）</option>
+                                <option value="context">上下文窗口</option>
+                                <option value="tonic">仅主音</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>提示方式:</label>
+                            <select id="hintType">
+                                <option value="direction">高低方向</option>
+                                <option value="distance">音程距离</option>
+                                <option value="none">不提示</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="controls-row" style="margin-top: 8px;">
+                        <div class="control-group" id="contextRangeGroup" style="display:none;">
+                            <label>上下文窗口大小:</label>
+                            <select id="contextRange">
+                                <option value="3">±3 半音</option>
+                                <option value="5" selected>±5 半音</option>
+                                <option value="7">±7 半音（纯五度）</option>
+                                <option value="12">±12 半音（一个八度）</option>
+                            </select>
+                        </div>
+                        <div class="control-group" style="margin-left: 5px;">
+                            <span id="octaveRefDesc" style="font-size:0.8em; color:#666;">🎵 播放目标音所在八度的白键音阶（do re mi fa sol la si）</span>
+                        </div>
+                    </div>
+                    <div class="controls-row" style="margin-top: 8px;">
+                        <div class="control-group">
+                            <label>🔊 力度模式:</label>
+                            <select id="velocityMode">
+                                <option value="fixed">固定力度</option>
+                                <option value="random">随机力度</option>
+                            </select>
+                        </div>
+                        <div class="control-group" id="fixedVelocityGroup">
+                            <label>力度级别:</label>
+                            <select id="velocityLevel">
+                                <!-- 由JS动态填充 -->
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <span id="velocityDesc" style="font-size:0.8em; color:#666;">🔊 使用固定力度播放</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="status-text" id="statusText">请设置音域范围后点击「出题」开始练习</div>
+            <div class="score-display">
+                <div class="score-item correct">
+                    <div class="value" id="correctCount">0</div>
+                    <div class="label">正确</div>
+                </div>
+                <div class="score-item wrong">
+                    <div class="value" id="wrongCount">0</div>
+                    <div class="label">错误</div>
+                </div>
+                <div class="score-item total">
+                    <div class="value" id="totalCount">0</div>
+                    <div class="label">总题数</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 提示区域 -->
+        <div class="hint-area" id="hintArea">
+            <span class="hint-info">选择音域范围，开始练耳之旅 🎵</span>
+        </div>
+
+        <!-- 钢琴键盘 -->
+        <div class="piano-wrapper">
+            <div class="piano" id="piano"></div>
+        </div>
+
+        <!-- 自由弹奏模式面板 -->
+        <div id="freeplayPanel" style="display:none;">
+            <div class="freeplay-controls">
+                <label>当前八度:</label>
+                <button class="secondary" onclick="shiftFreeplayOctave(-1)" style="padding:6px 12px;">◀</button>
+                <span class="octave-display" id="freeplayOctave">4</span>
+                <button class="secondary" onclick="shiftFreeplayOctave(1)" style="padding:6px 12px;">▶</button>
+                <span style="color:#666; margin-left:10px;">( 按 <kbd>Z</kbd> / <kbd>X</kbd> 切换八度 )</span>
+            </div>
+            <div class="freeplay-hint">
+                <div class="title">🎹 自由弹奏模式</div>
+                <div class="desc">
+                    点击钢琴键或使用电脑键盘弹奏，尽情发挥吧！<br>
+                    白键: <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd>
+                    → C D E F G A B C<br>
+                    黑键: <kbd>W</kbd> <kbd>E</kbd> &nbsp; <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd>
+                    → C# D# &nbsp; F# G# A#<br>
+                    <kbd>Z</kbd> 降八度 &nbsp; <kbd>X</kbd> 升八度
+                </div>
+                <div class="keyboard-map">
+                    <div class="km-key km-white">A<br><small>C</small></div>
+                    <div class="km-key km-black">W<br><small>C#</small></div>
+                    <div class="km-key km-white">S<br><small>D</small></div>
+                    <div class="km-key km-black">E<br><small>D#</small></div>
+                    <div class="km-key km-white">D<br><small>E</small></div>
+                    <div class="km-key km-white">F<br><small>F</small></div>
+                    <div class="km-key km-black">T<br><small>F#</small></div>
+                    <div class="km-key km-white">G<br><small>G</small></div>
+                    <div class="km-key km-black">Y<br><small>G#</small></div>
+                    <div class="km-key km-white">H<br><small>A</small></div>
+                    <div class="km-key km-black">U<br><small>A#</small></div>
+                    <div class="km-key km-white">J<br><small>B</small></div>
+                    <div class="km-key km-white">K<br><small>C+</small></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="keyboard-hint" id="keyboardHint">
+            💡 点击钢琴键来回答 | 在范围内的琴键有蓝色底边标记 | 绿色=正确 红色=错误 黄色=正确答案
+        </div>
+
+        <!-- 操作历史 -->
+        <div class="history" id="history" style="margin-top: 15px;">
+            <h3>📋 练习记录</h3>
+            <div id="historyList"></div>
+        </div>
+    </div>
+
+<script>
+// ========== 全局常量和状态 ==========
+// 所有88键钢琴的音名 (A0 到 C8)
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const ALL_NOTES = [];
+
+// 生成完整88键音名列表 (A0, A#0, B0, C1, C#1, ... C8)
+// MIDI编号: A0=21, C8=108
+for (let midi = 21; midi <= 108; midi++) {
+    const octave = Math.floor((midi - 12) / 12);
+    const noteIndex = (midi - 12) % 12;
+    ALL_NOTES.push({
+        name: NOTE_NAMES[noteIndex] + octave,
+        midi: midi,
+        noteName: NOTE_NAMES[noteIndex],
+        octave: octave,
+        isBlack: [1, 3, 6, 8, 10].includes(noteIndex)
+    });
+}
+
+// 可用的采样文件 (Salamander钢琴采样点: A, C, D#, F#)
+const AVAILABLE_SAMPLES = [
+    'A0','C1','D#1','F#1','A1','C2','D#2','F#2','A2','C3','D#3','F#3',
+    'A3','C4','D#4','F#4','A4','C5','D#5','F#5','A5','C6','D#6','F#6',
+    'A6','C7','D#7','F#7','A7','C8'
+];
+
+// 后端传入的配置：音频格式和可用力度层
+const AUDIO_FORMAT = '{{ audio_format }}';
+const VELOCITY_LAYERS = {{ velocity_layers | tojson }};
+
+// 力度层的中文描述
+const VELOCITY_LABELS = {
+    'pp': 'pp (极弱)',
+    'p':  'p (弱)',
+    'mp': 'mp (中弱)',
+    'mf': 'mf (中强)',
+    'f':  'f (强)',
+    'ff': 'ff (极强)'
+};
+
+// Web Audio 上下文和缓冲区
+let audioCtx = null;
+// 采样缓冲区: sampleBuffers[velocityLayer][sampleName] = AudioBuffer
+// 当只有单力度时: sampleBuffers['mp'][sampleName]
+const sampleBuffers = {};
+
+// 游戏状态
+let currentMode = 'free';   // 'free' | 'octave' | 'freeplay'
+let currentAnswer = null;   // 当前正确答案的音符对象
+let isAnswered = false;     // 当前题目是否已作答
+let lowNoteIndex = 0;       // 低音范围索引
+let highNoteIndex = 87;     // 高音范围索引
+let correctCount = 0;
+let wrongCount = 0;
+let totalCount = 0;
+let currentPlayingSource = null;  // 当前播放的音源
+let freeplayOctave = 4;  // 自由弹奏当前八度
+let activeKeySources = {};  // 自由弹奏时同时按下的键 -> {source, gain}
+let lastWrongIndex = null;  // 最近一次选错的按键索引，用于允许重复弹奏
+let currentVelocityLayer = 'mp'; // 当前使用的力度层
+
+// ========== 音频引擎 ==========
+
+/**
+ * 获取某个MIDI音符最近的采样文件名及半音偏移
+ */
+function findNearestSample(midi) {
+    // 将采样名转换为MIDI值
+    function sampleToMidi(name) {
+        // 解析如 "A0", "C#1", "D#3"
+        let note, octave;
+        if (name.length === 3 || (name.length > 2 && name[1] === '#')) {
+            note = name.substring(0, 2);
+            octave = parseInt(name.substring(2));
+        } else {
+            note = name.substring(0, 1);
+            octave = parseInt(name.substring(1));
+        }
+        const noteIdx = NOTE_NAMES.indexOf(note);
+        return noteIdx + (octave + 1) * 12;
+    }
+
+    let bestSample = AVAILABLE_SAMPLES[0];
+    let bestDist = Infinity;
+
+    for (const sample of AVAILABLE_SAMPLES) {
+        const sampleMidi = sampleToMidi(sample);
+        const dist = Math.abs(midi - sampleMidi);
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestSample = sample;
+        }
+    }
+
+    const sampleMidi = sampleToMidi(bestSample);
+    const semitoneOffset = midi - sampleMidi;
+    return { sampleName: bestSample, semitoneOffset };
+}
+
+/**
+ * 获取当前应该使用的力度层
+ * 根据力度模式返回固定力度或随机力度
+ */
+function getVelocityLayer() {
+    const mode = document.getElementById('velocityMode').value;
+    if (mode === 'random') {
+        // 从可用力度层中随机选择
+        const idx = Math.floor(Math.random() * VELOCITY_LAYERS.length);
+        return VELOCITY_LAYERS[idx];
+    } else {
+        return document.getElementById('velocityLevel').value;
+    }
+}
+
+/**
+ * 播放指定MIDI音符
+ * 使用最近的采样 + 变调
+ * polyphonic: 是否多声部模式（不停止前一个音）
+ * velocityOverride: 强制使用指定力度层（不为空时忽略力度模式设置）
+ */
+function playNote(midi, duration = 3.0, polyphonic = false, velocityOverride = null) {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    // 非多声部模式时停止之前的播放
+    if (!polyphonic && currentPlayingSource) {
+        try { currentPlayingSource.stop(); } catch(e) {}
+    }
+
+    // 确定力度层
+    const velLayer = velocityOverride || getVelocityLayer();
+    currentVelocityLayer = velLayer;
+
+    const { sampleName, semitoneOffset } = findNearestSample(midi);
+
+    // 从对应力度层的缓冲区中获取采样
+    const layerBuffers = sampleBuffers[velLayer];
+    const buffer = layerBuffers ? layerBuffers[sampleName] : null;
+
+    // 如果指定力度层没有采样，尝试 fallback 到 mp 层
+    let finalBuffer = buffer;
+    if (!finalBuffer && sampleBuffers['mp']) {
+        finalBuffer = sampleBuffers['mp'][sampleName];
+    }
+    // 再 fallback: 尝试任何可用层
+    if (!finalBuffer) {
+        for (const layer of VELOCITY_LAYERS) {
+            if (sampleBuffers[layer] && sampleBuffers[layer][sampleName]) {
+                finalBuffer = sampleBuffers[layer][sampleName];
+                break;
+            }
+        }
+    }
+
+    if (!finalBuffer) {
+        console.warn(`采样 ${sampleName} (${velLayer}) 未加载`);
+        return null;
+    }
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = finalBuffer;
+
+    // 变调: 每个半音的频率比是 2^(1/12)
+    source.playbackRate.value = Math.pow(2, semitoneOffset / 12);
+
+    // 音量控制 - 根据力度层微调基础音量
+    const velocityGains = { 'pp': 0.35, 'p': 0.50, 'mp': 0.65, 'mf': 0.80, 'f': 0.92, 'ff': 1.0 };
+    const baseGain = velocityGains[velLayer] || 0.8;
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.setValueAtTime(baseGain, audioCtx.currentTime);
+    // 淡出
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+
+    source.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    source.start();
+
+    if (!polyphonic) {
+        currentPlayingSource = source;
+    }
+
+    // 自动停止
+    setTimeout(() => {
+        try { source.stop(); } catch(e) {}
+    }, duration * 1000);
+
+    return { source, gainNode };
+}
+
+/**
+ * 加载所有采样文件（支持多力度层）
+ */
+async function loadSamples() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    const loadingBar = document.getElementById('loadingBar');
+    const loadingText = document.querySelector('.loading-text');
+
+    // 初始化各力度层的缓冲区
+    for (const layer of VELOCITY_LAYERS) {
+        sampleBuffers[layer] = {};
+    }
+
+    const total = AVAILABLE_SAMPLES.length * VELOCITY_LAYERS.length;
+    let loaded = 0;
+
+    const promises = [];
+
+    for (const layer of VELOCITY_LAYERS) {
+        for (const name of AVAILABLE_SAMPLES) {
+            promises.push((async () => {
+                try {
+                    // 力度层后缀: A0_mp.mp3, A0_ff.wav 等
+                    const url = `/samples/${encodeURIComponent(name)}_${layer}.${AUDIO_FORMAT}`;
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        // 如果该力度层文件不存在，尝试无后缀版本（兼容旧版单力度）
+                        const fallbackUrl = `/samples/${encodeURIComponent(name)}.${AUDIO_FORMAT}`;
+                        const fbResponse = await fetch(fallbackUrl);
+                        if (fbResponse.ok) {
+                            const arrayBuffer = await fbResponse.arrayBuffer();
+                            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                            sampleBuffers[layer][name] = audioBuffer;
+                        }
+                    } else {
+                        const arrayBuffer = await response.arrayBuffer();
+                        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                        sampleBuffers[layer][name] = audioBuffer;
+                    }
+                } catch (e) {
+                    // 静默失败，会在播放时 fallback
+                }
+                loaded++;
+                loadingBar.style.width = (loaded / total * 100) + '%';
+                if (loadingText) {
+                    loadingText.textContent = `🎹 正在加载钢琴采样... (${loaded}/${total})`;
+                }
+            })());
+        }
+    }
+
+    await Promise.all(promises);
+    document.getElementById('loadingOverlay').classList.add('hidden');
+
+    // 统计加载情况
+    let totalLoaded = 0;
+    for (const layer of VELOCITY_LAYERS) {
+        const count = Object.keys(sampleBuffers[layer]).length;
+        totalLoaded += count;
+        console.log(`力度层 ${layer}: 加载了 ${count} 个采样`);
+    }
+    console.log(`共加载 ${totalLoaded} 个采样 (格式: ${AUDIO_FORMAT})`);
+}
+
+// ========== 钢琴键盘渲染 ==========
+
+function buildPiano() {
+    const piano = document.getElementById('piano');
+    piano.innerHTML = '';
+
+    // 白键位置计算
+    let whiteKeyCount = 0;
+    const keyElements = [];
+
+    // 先放白键
+    for (let i = 0; i < ALL_NOTES.length; i++) {
+        const note = ALL_NOTES[i];
+        if (!note.isBlack) {
+            const key = document.createElement('div');
+            key.className = 'white-key';
+            key.dataset.index = i;
+            key.dataset.midi = note.midi;
+            key.dataset.name = note.name;
+            key.dataset.whitePos = whiteKeyCount;
+
+            const label = document.createElement('span');
+            label.className = 'key-label';
+            // 只在C音上显示完整标签
+            if (note.noteName === 'C') {
+                label.textContent = note.name;
+            } else if (note.noteName === 'A' && note.octave === 0) {
+                label.textContent = 'A0';
+            }
+            key.appendChild(label);
+
+            key.addEventListener('click', () => onKeyClick(i));
+            piano.appendChild(key);
+            keyElements[i] = key;
+            whiteKeyCount++;
+        }
+    }
+
+    // 设置钢琴宽度
+    piano.style.width = (whiteKeyCount * 42) + 'px';
+
+    // 再放黑键（需要根据前一个白键位置来定位）
+    let whiteIdx = 0;
+    for (let i = 0; i < ALL_NOTES.length; i++) {
+        const note = ALL_NOTES[i];
+        if (note.isBlack) {
+            const key = document.createElement('div');
+            key.className = 'black-key';
+            key.dataset.index = i;
+            key.dataset.midi = note.midi;
+            key.dataset.name = note.name;
+
+            // 黑键位于前一个白键的右侧
+            // 找到前一个白键的位置
+            const prevWhitePos = findPrevWhiteKeyPos(i);
+            key.style.left = (prevWhitePos * 42 + 42 - 14) + 'px';
+
+            const label = document.createElement('span');
+            label.className = 'key-label';
+            key.appendChild(label);
+
+            key.addEventListener('click', () => onKeyClick(i));
+            piano.appendChild(key);
+            keyElements[i] = key;
+        } else {
+            whiteIdx++;
+        }
+    }
+
+    return keyElements;
+}
+
+function findPrevWhiteKeyPos(blackIndex) {
+    let count = 0;
+    for (let i = 0; i < blackIndex; i++) {
+        if (!ALL_NOTES[i].isBlack) count++;
+    }
+    return count - 1;
+}
+
+let pianoKeys = [];
+
+// ========== 下拉框填充 ==========
+
+function populateSelects() {
+    const lowSelect = document.getElementById('lowNote');
+    const highSelect = document.getElementById('highNote');
+
+    for (let i = 0; i < ALL_NOTES.length; i++) {
+        const note = ALL_NOTES[i];
+        const opt1 = new Option(note.name, i);
+        const opt2 = new Option(note.name, i);
+        lowSelect.appendChild(opt1);
+        highSelect.appendChild(opt2);
+    }
+
+    // 默认范围: C3 - C5 (适合初学者)
+    const c3Idx = ALL_NOTES.findIndex(n => n.name === 'C3');
+    const c5Idx = ALL_NOTES.findIndex(n => n.name === 'C5');
+    lowSelect.value = c3Idx;
+    highSelect.value = c5Idx;
+    lowNoteIndex = c3Idx;
+    highNoteIndex = c5Idx;
+
+    lowSelect.addEventListener('change', () => {
+        lowNoteIndex = parseInt(lowSelect.value);
+        updateRangeHighlight();
+    });
+    highSelect.addEventListener('change', () => {
+        highNoteIndex = parseInt(highSelect.value);
+        updateRangeHighlight();
+    });
+}
+
+// ========== 范围高亮 ==========
+
+function updateRangeHighlight() {
+    // 清除所有范围标记
+    document.querySelectorAll('.in-range').forEach(el => el.classList.remove('in-range'));
+
+    // 添加范围标记
+    for (let i = lowNoteIndex; i <= highNoteIndex; i++) {
+        const el = document.querySelector(`[data-index="${i}"]`);
+        if (el) el.classList.add('in-range');
+    }
+}
+
+// ========== 游戏逻辑 ==========
+
+function switchMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.mode-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.mode === mode);
+    });
+
+    const btnOctave = document.getElementById('btnPlayOctave');
+    btnOctave.style.display = mode === 'octave' ? 'inline-block' : 'none';
+
+    // 自由弹奏模式的显示/隐藏
+    const isFreeplay = mode === 'freeplay';
+    document.getElementById('freeplayPanel').style.display = isFreeplay ? 'block' : 'none';
+    document.getElementById('keyboardHint').style.display = isFreeplay ? 'none' : 'block';
+
+    // 练习相关控件的显示/隐藏
+    const practiceEls = [
+        document.querySelector('.controls'),
+        document.querySelector('.accordion'),
+        document.querySelector('.status-bar'),
+        document.getElementById('hintArea'),
+        document.getElementById('history'),
+    ];
+    practiceEls.forEach(el => {
+        if (el) el.style.display = isFreeplay ? 'none' : '';
+    });
+
+    // 自由弹奏模式下清除范围高亮
+    if (isFreeplay) {
+        clearKeyHighlights();
+        document.querySelectorAll('.in-range').forEach(el => el.classList.remove('in-range'));
+    } else {
+        updateRangeHighlight();
+    }
+
+    // 如果有当前答案，需要重置
+    resetQuestion();
+}
+
+function resetQuestion() {
+    currentAnswer = null;
+    isAnswered = false;
+    lastWrongIndex = null;
+    clearKeyHighlights();
+    document.getElementById('btnReplay').disabled = true;
+    document.getElementById('btnShowAnswer').disabled = true;
+    document.getElementById('hintArea').innerHTML = '<span class="hint-info">点击「出题」开始新一轮练习</span>';
+    document.getElementById('statusText').textContent = '准备就绪';
+}
+
+function clearKeyHighlights() {
+    document.querySelectorAll('.highlight, .correct-key, .wrong-key, .answer-key, .pressed').forEach(el => {
+        el.classList.remove('highlight', 'correct-key', 'wrong-key', 'answer-key', 'pressed');
+    });
+    // 清除所有音名标签
+    document.querySelectorAll('.note-name-label').forEach(el => el.remove());
+}
+
+function newQuestion() {
+    if (lowNoteIndex >= highNoteIndex) {
+        alert('请确保低音低于高音！');
+        return;
+    }
+
+    clearKeyHighlights();
+    isAnswered = false;
+    lastWrongIndex = null;
+
+    // 随机选一个音
+    const range = highNoteIndex - lowNoteIndex + 1;
+    const randomIdx = lowNoteIndex + Math.floor(Math.random() * range);
+    currentAnswer = { index: randomIdx, ...ALL_NOTES[randomIdx] };
+
+    document.getElementById('btnReplay').disabled = false;
+    document.getElementById('btnShowAnswer').disabled = false;
+
+    if (currentMode === 'octave') {
+        // 八度辅助模式: 先找到答案所在的八度起点（C音开始）
+        document.getElementById('statusText').textContent = '八度辅助模式 - 先听参考音阶，再听目标音';
+        document.getElementById('hintArea').innerHTML =
+            '<span class="hint-info">🎼 先点击「播放八度参考」听一遍音阶，然后听目标音来判断</span>';
+        // 直接播放目标音
+        playNote(currentAnswer.midi);
+        flashKey(randomIdx);
+    } else {
+        // 自由模式
+        document.getElementById('statusText').textContent = '自由练习模式 - 听音辨音';
+        document.getElementById('hintArea').innerHTML =
+            '<span class="hint-info">🎵 已播放一个音，请在键盘上点击你认为的答案</span>';
+        playNote(currentAnswer.midi);
+    }
+}
+
+function replayCurrentNote() {
+    if (!currentAnswer) return;
+    playNote(currentAnswer.midi);
+    // 不在自由模式下闪烁
+    if (currentMode === 'octave' && !isAnswered) {
+        // 不做键盘提示
+    }
+}
+
+/**
+ * 获取八度参考音阶的音符索引列表
+ * 根据选择的模式返回不同的参考音集合
+ */
+function getOctaveRefNotes() {
+    const mode = document.getElementById('octaveRefMode').value;
+    const answerIndex = currentAnswer.index;
+    const ansOctave = currentAnswer.octave;
+
+    switch (mode) {
+        case 'chromatic': {
+            // 完整半音阶：答案所在八度的 C → B（12个音）
+            const start = ALL_NOTES.findIndex(n => n.noteName === 'C' && n.octave === ansOctave);
+            const end = ALL_NOTES.findIndex(n => n.noteName === 'B' && n.octave === ansOctave);
+            if (start === -1 || end === -1) return [];
+            const notes = [];
+            for (let i = start; i <= end; i++) notes.push(i);
+            return notes;
+        }
+        case 'diatonic': {
+            // 自然音阶：答案所在八度的白键（C D E F G A B，共7个音）
+            const start = ALL_NOTES.findIndex(n => n.noteName === 'C' && n.octave === ansOctave);
+            const end = ALL_NOTES.findIndex(n => n.noteName === 'B' && n.octave === ansOctave);
+            if (start === -1 || end === -1) return [];
+            const notes = [];
+            for (let i = start; i <= end; i++) {
+                if (!ALL_NOTES[i].isBlack) notes.push(i);
+            }
+            return notes;
+        }
+        case 'context': {
+            // 上下文窗口：以目标音为中心，前后 N 个半音
+            const range = parseInt(document.getElementById('contextRange').value);
+            const start = Math.max(0, answerIndex - range);
+            const end = Math.min(ALL_NOTES.length - 1, answerIndex + range);
+            const notes = [];
+            for (let i = start; i <= end; i++) notes.push(i);
+            return notes;
+        }
+        case 'tonic': {
+            // 仅主音：只播放该八度的 C
+            const cIndex = ALL_NOTES.findIndex(n => n.noteName === 'C' && n.octave === ansOctave);
+            if (cIndex === -1) return [];
+            return [cIndex];
+        }
+        default:
+            return [];
+    }
+}
+
+/**
+ * 播放八度参考音阶
+ * 根据用户选择的参考模式播放不同的参考音集合
+ */
+async function playOctaveHint() {
+    if (!currentAnswer) {
+        document.getElementById('hintArea').innerHTML =
+            '<span class="hint-wrong">请先点击「出题」!</span>';
+        return;
+    }
+
+    const speed = parseInt(document.getElementById('octaveSpeed').value);
+    const refNotes = getOctaveRefNotes();
+
+    if (refNotes.length === 0) {
+        document.getElementById('hintArea').innerHTML =
+            '<span class="hint-wrong">⚠️ 无法生成参考音阶，请检查设置</span>';
+        return;
+    }
+
+    const mode = document.getElementById('octaveRefMode').value;
+    const modeNames = {
+        chromatic: '完整半音阶',
+        diatonic: '自然音阶',
+        context: '上下文窗口',
+        tonic: '主音参考'
+    };
+
+    document.getElementById('hintArea').innerHTML =
+        `<span class="hint-info">🎼 正在播放${modeNames[mode]}参考（${refNotes.length}个音）...</span>`;
+
+    // 禁用按钮防止重复触发
+    document.getElementById('btnPlayOctave').disabled = true;
+
+    // 依次播放并高亮 + 显示音名
+    for (const idx of refNotes) {
+        const note = ALL_NOTES[idx];
+        playNote(note.midi, 0.8);
+
+        // 高亮当前按键 + 显示音名
+        const keyEl = document.querySelector(`[data-index="${idx}"]`);
+        if (keyEl) keyEl.classList.add('highlight');
+        showNoteName(idx, true);  // 持久显示，手动移除
+
+        await sleep(speed);
+
+        // 取消高亮 + 移除音名
+        if (keyEl) keyEl.classList.remove('highlight');
+        hideNoteName(idx);
+    }
+
+    document.getElementById('btnPlayOctave').disabled = false;
+    document.getElementById('hintArea').innerHTML =
+        `<span class="hint-info">🎵 ${modeNames[mode]}参考播放完毕，现在重听目标音来判断吧！</span>`;
+
+    // 自动重播目标音
+    await sleep(300);
+    playNote(currentAnswer.midi);
+}
+
+function flashKey(index) {
+    // 短暂闪烁效果（仅在八度模式下使用）
+    // 这里不闪烁，因为不应该提示答案
+}
+
+function onKeyClick(noteIndex) {
+    // 自由弹奏模式：直接发声
+    if (currentMode === 'freeplay') {
+        const note = ALL_NOTES[noteIndex];
+        playNote(note.midi, 3.0, true);
+        // 高亮按键效果 + 显示音名
+        const keyEl = document.querySelector(`[data-index="${noteIndex}"]`);
+        if (keyEl) {
+            keyEl.classList.add('highlight');
+            setTimeout(() => keyEl.classList.remove('highlight'), 300);
+        }
+        showNoteName(noteIndex);  // 显示音名（自动消失）
+        return;
+    }
+
+    if (!currentAnswer) return;
+
+    // 已答对后，解锁键盘允许自由弹奏（可以对比听各个音）
+    if (isAnswered) {
+        const note = ALL_NOTES[noteIndex];
+        playNote(note.midi, 2.0);
+        // 短暂高亮 + 显示音名
+        const keyEl = document.querySelector(`[data-index="${noteIndex}"]`);
+        if (keyEl) {
+            keyEl.classList.add('highlight');
+            setTimeout(() => keyEl.classList.remove('highlight'), 300);
+        }
+        showNoteName(noteIndex);  // 显示音名（自动消失）
+        return;
+    }
+
+    // 检查是否在范围内
+    if (noteIndex < lowNoteIndex || noteIndex > highNoteIndex) {
+        document.getElementById('hintArea').innerHTML =
+            '<span class="hint-wrong">⚠️ 请在指定范围内选择！</span>';
+        return;
+    }
+
+    const clickedNote = ALL_NOTES[noteIndex];
+    const correctIndex = currentAnswer.index;
+    const clickedEl = document.querySelector(`[data-index="${noteIndex}"]`);
+    const correctEl = document.querySelector(`[data-index="${correctIndex}"]`);
+
+    // 播放点击的音 + 显示音名
+    playNote(clickedNote.midi, 1.5);
+    showNoteName(noteIndex);  // 答题时也显示所按音名
+
+    if (noteIndex === correctIndex) {
+        // 正确!
+        isAnswered = true;
+        correctCount++;
+        totalCount++;
+        updateScore();
+
+        clickedEl.classList.add('correct-key');
+        document.getElementById('hintArea').innerHTML =
+            `<span class="hint-correct">✅ 正确! 答案就是 ${currentAnswer.name}（键盘已解锁，可自由弹奏对比）</span>`;
+        document.getElementById('statusText').textContent = '🎉 回答正确！键盘已解锁，点击「出题」继续';
+
+        addHistory(`✅ 正确: ${currentAnswer.name}`, true);
+    } else {
+        // 错误 - 首次选错才计分
+        if (!lastWrongIndex) {
+            wrongCount++;
+            totalCount++;
+            updateScore();
+        }
+
+        // 记录最近一次选错的按键索引
+        lastWrongIndex = noteIndex;
+
+        clickedEl.classList.add('wrong-key');
+
+        const hintType = document.getElementById('hintType').value;
+        let hintText = '';
+
+        if (hintType === 'direction') {
+            if (noteIndex < correctIndex) {
+                hintText = `❌ 你选的 ${clickedNote.name} 偏低了 ⬆️`;
+            } else {
+                hintText = `❌ 你选的 ${clickedNote.name} 偏高了 ⬇️`;
+            }
+        } else if (hintType === 'distance') {
+            const dist = Math.abs(noteIndex - correctIndex);
+            const dir = noteIndex < correctIndex ? '低' : '高';
+            hintText = `❌ 你选的 ${clickedNote.name} ${dir}了 ${dist} 个半音`;
+        } else {
+            hintText = `❌ 不对哦，再试试！`;
+        }
+
+        document.getElementById('hintArea').innerHTML =
+            `<span class="hint-wrong">${hintText}（可点击错误按键重复听，再点其他键继续猜）</span>`;
+
+        addHistory(`❌ 答案: ${currentAnswer.name}, 你选: ${clickedNote.name}`, false);
+
+        // 不标记为已作答，允许继续猜
+    }
+}
+
+function showAnswer() {
+    if (!currentAnswer) return;
+
+    isAnswered = true;
+    lastWrongIndex = null;
+    const correctEl = document.querySelector(`[data-index="${currentAnswer.index}"]`);
+    if (correctEl) correctEl.classList.add('answer-key');
+
+    // 播放正确答案
+    playNote(currentAnswer.midi);
+
+    document.getElementById('hintArea').innerHTML =
+        `<span class="hint-info">💡 答案是: <strong>${currentAnswer.name}</strong></span>`;
+    document.getElementById('statusText').textContent = '已显示答案，点击「出题」继续';
+
+    addHistory(`💡 揭示答案: ${currentAnswer.name}`, false);
+    if (totalCount === 0) {
+        totalCount++;
+        wrongCount++;
+        updateScore();
+    }
+}
+
+function updateScore() {
+    document.getElementById('correctCount').textContent = correctCount;
+    document.getElementById('wrongCount').textContent = wrongCount;
+    document.getElementById('totalCount').textContent = totalCount;
+}
+
+function addHistory(text, isCorrect) {
+    const list = document.getElementById('historyList');
+    const item = document.createElement('div');
+    item.className = `history-item ${isCorrect ? 'correct' : 'wrong'}`;
+    const time = new Date().toLocaleTimeString();
+    item.textContent = `[${time}] ${text}`;
+    list.insertBefore(item, list.firstChild);
+
+    // 最多保留50条
+    while (list.children.length > 50) {
+        list.removeChild(list.lastChild);
+    }
+}
+
+// ========== 折叠面板 ==========
+
+function toggleAccordion(header) {
+    header.classList.toggle('open');
+    const body = header.nextElementSibling;
+    body.classList.toggle('open');
+}
+
+// ========== 工具函数 ==========
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * 在琴键上显示音名标签
+ * @param {number} noteIndex - ALL_NOTES 中的索引
+ * @param {boolean} persistent - 是否持久显示（false则一段时间后自动消失）
+ * @returns {HTMLElement|null} 创建的标签元素
+ */
+function showNoteName(noteIndex, persistent = false) {
+    const keyEl = document.querySelector(`[data-index="${noteIndex}"]`);
+    if (!keyEl) return null;
+    // 移除已有的音名标签（防止重复）
+    const existing = keyEl.querySelector('.note-name-label');
+    if (existing) existing.remove();
+
+    const note = ALL_NOTES[noteIndex];
+    const label = document.createElement('span');
+    label.className = 'note-name-label';
+    label.textContent = note.name;
+    keyEl.appendChild(label);
+
+    if (!persistent) {
+        // 非持久模式：1.5秒后淡出消失
+        setTimeout(() => {
+            label.style.transition = 'opacity 0.3s';
+            label.style.opacity = '0';
+            setTimeout(() => label.remove(), 300);
+        }, 1500);
+    }
+    return label;
+}
+
+/**
+ * 移除琴键上的音名标签
+ */
+function hideNoteName(noteIndex) {
+    const keyEl = document.querySelector(`[data-index="${noteIndex}"]`);
+    if (!keyEl) return;
+    const label = keyEl.querySelector('.note-name-label');
+    if (label) {
+        label.style.transition = 'opacity 0.15s';
+        label.style.opacity = '0';
+        setTimeout(() => label.remove(), 150);
+    }
+}
+
+// ========== 力度控制联动 ==========
+
+function setupVelocityControls() {
+    const modeSelect = document.getElementById('velocityMode');
+    const levelSelect = document.getElementById('velocityLevel');
+    const fixedGroup = document.getElementById('fixedVelocityGroup');
+    const descEl = document.getElementById('velocityDesc');
+
+    // 填充力度级别下拉框
+    levelSelect.innerHTML = '';
+    for (const layer of VELOCITY_LAYERS) {
+        const opt = document.createElement('option');
+        opt.value = layer;
+        opt.textContent = VELOCITY_LABELS[layer] || layer;
+        if (layer === 'mf') opt.selected = true;
+        levelSelect.appendChild(opt);
+    }
+
+    // 如果只有一个力度层，禁用力度模式选择
+    if (VELOCITY_LAYERS.length <= 1) {
+        modeSelect.disabled = true;
+        modeSelect.value = 'fixed';
+        const singleLayer = VELOCITY_LAYERS[0] || 'mp';
+        descEl.textContent = `🔊 仅加载了单力度层 ${singleLayer}`;
+    }
+
+    function update() {
+        const mode = modeSelect.value;
+        fixedGroup.style.display = mode === 'fixed' ? 'flex' : 'none';
+        if (mode === 'random') {
+            descEl.textContent = `🎲 每次播放随机选择力度 (${VELOCITY_LAYERS.join(', ')})`;
+        } else {
+            const level = levelSelect.value;
+            descEl.textContent = `🔊 使用 ${VELOCITY_LABELS[level] || level} 力度播放`;
+        }
+    }
+
+    modeSelect.addEventListener('change', update);
+    levelSelect.addEventListener('change', update);
+    update();
+}
+
+// ========== 八度参考模式联动 ==========
+
+// 监听参考模式变化，动态显示/隐藏上下文窗口设置，更新描述
+function setupOctaveRefModeListener() {
+    const modeSelect = document.getElementById('octaveRefMode');
+    const contextGroup = document.getElementById('contextRangeGroup');
+    const descEl = document.getElementById('octaveRefDesc');
+
+    const descriptions = {
+        chromatic: '🎵 播放目标音所在八度的全部12个半音（C C# D D# ... B）',
+        diatonic: '🎵 播放目标音所在八度的白键音阶（do re mi fa sol la si）',
+        context: '🎵 以目标音为中心，播放前后指定范围内的所有半音',
+        tonic: '🎵 仅播放目标音所在八度的主音 C（最简洁，难度最高）'
+    };
+
+    function update() {
+        const mode = modeSelect.value;
+        contextGroup.style.display = mode === 'context' ? 'flex' : 'none';
+        descEl.textContent = descriptions[mode] || '';
+    }
+
+    modeSelect.addEventListener('change', update);
+    update(); // 初始化
+}
+
+// ========== 自由弹奏 - 电脑键盘映射 ==========
+
+// 键盘按键 -> 音名偏移（相对于当前八度的C）
+const KEYBOARD_MAP = {
+    'KeyA': 0,   // C
+    'KeyW': 1,   // C#
+    'KeyS': 2,   // D
+    'KeyE': 3,   // D#
+    'KeyD': 4,   // E
+    'KeyF': 5,   // F
+    'KeyT': 6,   // F#
+    'KeyG': 7,   // G
+    'KeyY': 8,   // G#
+    'KeyH': 9,   // A
+    'KeyU': 10,  // A#
+    'KeyJ': 11,  // B
+    'KeyK': 12,  // 高八度C
+};
+
+function shiftFreeplayOctave(delta) {
+    freeplayOctave = Math.max(0, Math.min(8, freeplayOctave + delta));
+    document.getElementById('freeplayOctave').textContent = freeplayOctave;
+}
+
+function freeplayNoteOn(code) {
+    if (activeKeySources[code]) return; // 防止按键重复触发
+
+    const semitoneOffset = KEYBOARD_MAP[code];
+    if (semitoneOffset === undefined) return;
+
+    // 计算 MIDI 编号：C4 = MIDI 60
+    const midi = (freeplayOctave + 1) * 12 + semitoneOffset;
+    if (midi < 21 || midi > 108) return; // 超出钢琴范围
+
+    // 找到键盘上对应的键
+    const noteIdx = ALL_NOTES.findIndex(n => n.midi === midi);
+    const keyEl = noteIdx >= 0 ? document.querySelector(`[data-index="${noteIdx}"]`) : null;
+    if (keyEl) keyEl.classList.add('highlight');
+    // 显示音名（持久，直到松键时移除）
+    if (noteIdx >= 0) showNoteName(noteIdx, true);
+
+    // 播放，较长持续时间（会在keyup时手动停止）
+    const result = playNote(midi, 5.0, true);
+    if (result) {
+        activeKeySources[code] = { ...result, noteIdx };
+    }
+}
+
+function freeplayNoteOff(code) {
+    const active = activeKeySources[code];
+    if (!active) return;
+
+    // 淡出停止
+    try {
+        active.gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+        active.gainNode.gain.setValueAtTime(active.gainNode.gain.value, audioCtx.currentTime);
+        active.gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+        setTimeout(() => {
+            try { active.source.stop(); } catch(e) {}
+        }, 200);
+    } catch(e) {}
+
+    // 取消高亮 + 移除音名
+    const keyEl = active.noteIdx >= 0 ? document.querySelector(`[data-index="${active.noteIdx}"]`) : null;
+    if (keyEl) keyEl.classList.remove('highlight');
+    if (active.noteIdx >= 0) hideNoteName(active.noteIdx);
+
+    delete activeKeySources[code];
+}
+
+// ========== 键盘快捷键 ==========
+document.addEventListener('keydown', (e) => {
+    // 自由弹奏模式的键盘输入
+    if (currentMode === 'freeplay') {
+        if (e.code === 'KeyZ') {
+            shiftFreeplayOctave(-1);
+            return;
+        }
+        if (e.code === 'KeyX') {
+            shiftFreeplayOctave(1);
+            return;
+        }
+        if (KEYBOARD_MAP[e.code] !== undefined) {
+            e.preventDefault();
+            freeplayNoteOn(e.code);
+            return;
+        }
+    }
+
+    if (e.code === 'Space') {
+        e.preventDefault();
+        if (currentAnswer && !isAnswered) {
+            replayCurrentNote();
+        } else {
+            newQuestion();
+        }
+    }
+    if (e.code === 'KeyO' && currentMode === 'octave') {
+        playOctaveHint();
+    }
+});
+
+document.addEventListener('keyup', (e) => {
+    if (currentMode === 'freeplay' && KEYBOARD_MAP[e.code] !== undefined) {
+        freeplayNoteOff(e.code);
+    }
+});
+
+// ========== 初始化 ==========
+
+async function init() {
+    populateSelects();
+    pianoKeys = buildPiano();
+    updateRangeHighlight();
+    setupOctaveRefModeListener();
+    setupVelocityControls();
+
+    // 等待用户交互来初始化 AudioContext (浏览器策略)
+    document.addEventListener('click', async function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+        }
+        // 只需要初始化一次
+        document.removeEventListener('click', initAudio);
+    }, { once: false });
+
+    await loadSamples();
+}
+
+init();
+</script>
+</body>
+</html>

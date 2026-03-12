@@ -1,0 +1,24 @@
+# 解压后的原始钢琴采样目录（由 tar 包解压生成，不纳入版本控制）
+SalamanderGrandPianoV3_48khz24bit/
+
+# 转换后的网页用采样文件（由 prepare_samples.py 生成）
+static/samples/
+
+# 应用日志
+app.log
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器临时文件
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
