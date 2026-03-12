@@ -41,7 +41,7 @@ git lfs install
 ### 1. 克隆仓库
 
 ```bash
-git clone <仓库地址>
+git clone git@github.com:QicongXie/piano-ear-trainer.git
 cd piano-ear-trainer
 ```
 
