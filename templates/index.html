@@ -393,7 +393,7 @@
             transition: max-height 0.3s ease;
         }
         .accordion-body.open {
-            max-height: 400px;
+            max-height: 500px;
         }
         .accordion-content {
             padding: 0 20px 15px 20px;
@@ -580,6 +580,8 @@
                                 <option value="diatonic" selected>自然音阶（7音）</option>
                                 <option value="context">上下文窗口</option>
                                 <option value="tonic">仅主音</option>
+                                <option value="standardA">标准A参考</option>
+                                <option value="interval">音程参考</option>
                             </select>
                         </div>
                         <div class="control-group">
@@ -599,6 +601,28 @@
                                 <option value="5" selected>±5 半音</option>
                                 <option value="7">±7 半音（纯五度）</option>
                                 <option value="12">±12 半音（一个八度）</option>
+                            </select>
+                        </div>
+                        <div class="control-group" id="intervalTypeGroup" style="display:none;">
+                            <label>参考音程:</label>
+                            <select id="intervalType">
+                                <option value="5">纯四度 (P4)</option>
+                                <option value="7" selected>纯五度 (P5)</option>
+                                <option value="12">纯八度 (P8)</option>
+                                <option value="4">大三度 (M3)</option>
+                                <option value="3">小三度 (m3)</option>
+                                <option value="2">大二度 (M2)</option>
+                                <option value="9">大六度 (M6)</option>
+                                <option value="random">随机音程</option>
+                            </select>
+                        </div>
+                        <div class="control-group" id="intervalDirectionGroup" style="display:none;">
+                            <label>音程方向:</label>
+                            <select id="intervalDirection">
+                                <option value="up" selected>上行 ↑</option>
+                                <option value="down">下行 ↓</option>
+                                <option value="both">先上后下 ↑↓</option>
+                                <option value="random">随机方向</option>
                             </select>
                         </div>
                         <div class="control-group" style="margin-left: 5px;">
@@ -1207,7 +1231,6 @@ function getOctaveRefNotes() {
     switch (mode) {
         case 'chromatic': {
             // 完整半音阶（12个半音）：随机起始，上行12个音，确保包含目标音
-            // 起始音范围：[answerIndex - 11, answerIndex]，从中随机选一个
             const minStart = Math.max(0, answerIndex - 11);
             const maxStart = Math.min(answerIndex, ALL_NOTES.length - 12);
             if (maxStart < minStart) return [];
@@ -1218,16 +1241,12 @@ function getOctaveRefNotes() {
         }
         case 'diatonic': {
             // 自然音阶（7个白键音）：随机起始白键，上行7个白键音，确保包含目标音
-            // 先收集全部白键索引
             const whiteKeys = [];
             for (let i = 0; i < ALL_NOTES.length; i++) {
                 if (!ALL_NOTES[i].isBlack) whiteKeys.push(i);
             }
-            // 找到目标音最近的白键位置（用于确保区间覆盖目标音）
-            // 如果目标音是黑键，找它左右最近的白键
             let targetWhitePos = whiteKeys.findIndex(idx => idx >= answerIndex);
             if (targetWhitePos === -1) targetWhitePos = whiteKeys.length - 1;
-            // 起始白键范围：最多往前6个白键，最少就是目标白键自身
             const minWPos = Math.max(0, targetWhitePos - 6);
             const maxWPos = Math.min(targetWhitePos, whiteKeys.length - 7);
             if (maxWPos < minWPos) return [];
@@ -1253,9 +1272,105 @@ function getOctaveRefNotes() {
             if (cIndex === -1) return [];
             return [cIndex];
         }
+        case 'standardA': {
+            // 标准A参考：播放 A4 (440Hz, MIDI 69)
+            const a4Index = ALL_NOTES.findIndex(n => n.name === 'A4');
+            if (a4Index === -1) return [];
+            return [a4Index];
+        }
+        case 'interval': {
+            // 音程参考：从目标音所在八度的主音C出发，播放指定音程
+            // 返回特殊格式：{type: 'interval', notes: [...], intervalName: '...'}
+            // 由于 getOctaveRefNotes 返回的是数组，这里用特殊标记
+            // 实际播放逻辑在 playOctaveHint 中单独处理
+            return { type: 'interval' };
+        }
         default:
             return [];
     }
+}
+
+// 音程名称映射（半音数 -> 音程名）
+const INTERVAL_NAMES = {
+    1: '小二度 (m2)', 2: '大二度 (M2)', 3: '小三度 (m3)', 4: '大三度 (M3)',
+    5: '纯四度 (P4)', 6: '三全音 (TT)', 7: '纯五度 (P5)', 8: '小六度 (m6)',
+    9: '大六度 (M6)', 10: '小七度 (m7)', 11: '大七度 (M7)', 12: '纯八度 (P8)'
+};
+
+// 随机音程可选的半音数列表
+const RANDOM_INTERVALS = [2, 3, 4, 5, 7, 9, 12];
+
+/**
+ * 获取音程参考需要播放的音符
+ * 从目标音所在八度的C出发，播放指定音程
+ * 返回 {notes: [{index, label}...], intervalName: string}
+ */
+function getIntervalRefNotes() {
+    const answerIndex = currentAnswer.index;
+    const ansOctave = currentAnswer.octave;
+    const direction = document.getElementById('intervalDirection').value;
+    let intervalSemitones = document.getElementById('intervalType').value;
+
+    // 随机音程
+    if (intervalSemitones === 'random') {
+        intervalSemitones = RANDOM_INTERVALS[Math.floor(Math.random() * RANDOM_INTERVALS.length)];
+    } else {
+        intervalSemitones = parseInt(intervalSemitones);
+    }
+
+    // 基准音：目标音所在八度的C
+    const rootIndex = ALL_NOTES.findIndex(n => n.noteName === 'C' && n.octave === ansOctave);
+    if (rootIndex === -1) return null;
+
+    const intervalName = INTERVAL_NAMES[intervalSemitones] || `${intervalSemitones}半音`;
+
+    // 确定实际播放方向
+    let actualDirection = direction;
+    if (direction === 'random') {
+        actualDirection = Math.random() < 0.5 ? 'up' : 'down';
+    }
+
+    // 计算音程目标音的索引
+    const upperIndex = rootIndex + intervalSemitones;
+    const lowerIndex = rootIndex - intervalSemitones;
+
+    const notes = [];
+
+    if (actualDirection === 'up') {
+        // 上行：根音 → 根音+音程
+        if (upperIndex < ALL_NOTES.length) {
+            notes.push({ index: rootIndex, label: ALL_NOTES[rootIndex].name + ' (根音)' });
+            notes.push({ index: upperIndex, label: ALL_NOTES[upperIndex].name + ' (↑' + intervalName + ')' });
+        }
+    } else if (actualDirection === 'down') {
+        // 下行：根音 → 根音-音程
+        if (lowerIndex >= 0) {
+            notes.push({ index: rootIndex, label: ALL_NOTES[rootIndex].name + ' (根音)' });
+            notes.push({ index: lowerIndex, label: ALL_NOTES[lowerIndex].name + ' (↓' + intervalName + ')' });
+        }
+    } else if (actualDirection === 'both') {
+        // 先上后下：根音 → 上 → 根音 → 下
+        notes.push({ index: rootIndex, label: ALL_NOTES[rootIndex].name + ' (根音)' });
+        if (upperIndex < ALL_NOTES.length) {
+            notes.push({ index: upperIndex, label: ALL_NOTES[upperIndex].name + ' (↑' + intervalName + ')' });
+        }
+        notes.push({ index: rootIndex, label: ALL_NOTES[rootIndex].name + ' (根音)' });
+        if (lowerIndex >= 0) {
+            notes.push({ index: lowerIndex, label: ALL_NOTES[lowerIndex].name + ' (↓' + intervalName + ')' });
+        }
+    }
+
+    // fallback: 如果上行/下行超出范围，反转方向
+    if (notes.length === 0) {
+        notes.push({ index: rootIndex, label: ALL_NOTES[rootIndex].name + ' (根音)' });
+        const fallbackIdx = actualDirection === 'up' ? lowerIndex : upperIndex;
+        if (fallbackIdx >= 0 && fallbackIdx < ALL_NOTES.length) {
+            const fallbackDir = actualDirection === 'up' ? '↓' : '↑';
+            notes.push({ index: fallbackIdx, label: ALL_NOTES[fallbackIdx].name + ' (' + fallbackDir + intervalName + ')' });
+        }
+    }
+
+    return { notes, intervalName, direction: actualDirection };
 }
 
 /**
@@ -1270,41 +1385,81 @@ async function playOctaveHint() {
     }
 
     const speed = parseInt(document.getElementById('octaveSpeed').value);
-    const refNotes = getOctaveRefNotes();
-
-    if (refNotes.length === 0) {
-        document.getElementById('hintArea').innerHTML =
-            '<span class="hint-wrong">⚠️ 无法生成参考音阶，请检查设置</span>';
-        return;
-    }
-
     const mode = document.getElementById('octaveRefMode').value;
+
     const modeNames = {
         chromatic: '完整半音阶',
         diatonic: '自然音阶',
         context: '上下文窗口',
-        tonic: '主音参考'
+        tonic: '主音参考',
+        standardA: '标准A参考',
+        interval: '音程参考'
     };
-
-    document.getElementById('hintArea').innerHTML =
-        `<span class="hint-info">🎼 正在播放${modeNames[mode]}参考（${refNotes.length}个音）...</span>`;
 
     // 禁用按钮防止重复触发
     document.getElementById('btnPlayOctave').disabled = true;
+
+    if (mode === 'interval') {
+        // ====== 音程参考模式：特殊播放逻辑 ======
+        const intervalData = getIntervalRefNotes();
+        if (!intervalData || intervalData.notes.length === 0) {
+            document.getElementById('hintArea').innerHTML =
+                '<span class="hint-wrong">⚠️ 无法生成音程参考，请检查设置</span>';
+            document.getElementById('btnPlayOctave').disabled = false;
+            return;
+        }
+
+        const dirLabel = { up: '上行', down: '下行', both: '先上后下' };
+        document.getElementById('hintArea').innerHTML =
+            `<span class="hint-info">🎼 正在播放音程参考：${intervalData.intervalName}（${dirLabel[intervalData.direction] || ''}）...</span>`;
+
+        for (const noteInfo of intervalData.notes) {
+            const note = ALL_NOTES[noteInfo.index];
+            playNote(note.midi, 1.2);
+
+            const keyEl = document.querySelector(`[data-index="${noteInfo.index}"]`);
+            if (keyEl) keyEl.classList.add('highlight');
+            showNoteName(noteInfo.index, true);
+
+            await sleep(speed + 200);  // 音程参考稍慢一点，让学生听清
+
+            if (keyEl) keyEl.classList.remove('highlight');
+            hideNoteName(noteInfo.index);
+        }
+
+        document.getElementById('btnPlayOctave').disabled = false;
+        document.getElementById('hintArea').innerHTML =
+            `<span class="hint-info">🎵 音程参考（${intervalData.intervalName}）播放完毕，现在重听目标音来判断吧！</span>`;
+
+        await sleep(300);
+        playNote(currentAnswer.midi);
+        return;
+    }
+
+    // ====== 其他模式：通用播放逻辑 ======
+    const refNotes = getOctaveRefNotes();
+
+    if (!Array.isArray(refNotes) || refNotes.length === 0) {
+        document.getElementById('hintArea').innerHTML =
+            '<span class="hint-wrong">⚠️ 无法生成参考音阶，请检查设置</span>';
+        document.getElementById('btnPlayOctave').disabled = false;
+        return;
+    }
+
+    document.getElementById('hintArea').innerHTML =
+        `<span class="hint-info">🎼 正在播放${modeNames[mode]}参考（${refNotes.length}个音）...</span>`;
 
     // 依次播放并高亮 + 显示音名
     for (const idx of refNotes) {
         const note = ALL_NOTES[idx];
         playNote(note.midi, 0.8);
 
-        // 高亮当前按键 + 显示音名
         const keyEl = document.querySelector(`[data-index="${idx}"]`);
         if (keyEl) keyEl.classList.add('highlight');
-        showNoteName(idx, true);  // 持久显示，手动移除
+        showNoteName(idx, true);
 
         await sleep(speed);
 
-        // 取消高亮 + 移除音名
         if (keyEl) keyEl.classList.remove('highlight');
         hideNoteName(idx);
     }
@@ -1573,16 +1728,23 @@ function setupOctaveRefModeListener() {
     const contextGroup = document.getElementById('contextRangeGroup');
     const descEl = document.getElementById('octaveRefDesc');
 
+    const intervalTypeGroup = document.getElementById('intervalTypeGroup');
+    const intervalDirectionGroup = document.getElementById('intervalDirectionGroup');
+
     const descriptions = {
         chromatic: '🎵 随机起始音，上行播放12个半音（覆盖目标音区间，起点每次不同）',
         diatonic: '🎵 随机起始白键，上行播放7个白键音（覆盖目标音区间，起点每次不同）',
         context: '🎵 以目标音为中心，播放前后指定范围内的所有半音',
-        tonic: '🎵 仅播放目标音所在八度的主音 C（最简洁，难度最高）'
+        tonic: '🎵 仅播放目标音所在八度的主音 C（最简洁，难度最高）',
+        standardA: '🎵 播放标准A (A4=440Hz) 作为音高锚点，专业调音参考',
+        interval: '🎵 从目标音所在八度的C出发，播放指定音程作为参考'
     };
 
     function update() {
         const mode = modeSelect.value;
         contextGroup.style.display = mode === 'context' ? 'flex' : 'none';
+        intervalTypeGroup.style.display = mode === 'interval' ? 'flex' : 'none';
+        intervalDirectionGroup.style.display = mode === 'interval' ? 'flex' : 'none';
         descEl.textContent = descriptions[mode] || '';
     }
 
