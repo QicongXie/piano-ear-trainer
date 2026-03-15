@@ -602,7 +602,7 @@
                             </select>
                         </div>
                         <div class="control-group" style="margin-left: 5px;">
-                            <span id="octaveRefDesc" style="font-size:0.8em; color:#666;">🎵 播放目标音所在八度的白键音阶（do re mi fa sol la si）</span>
+<span id="octaveRefDesc" style="font-size:0.8em; color:#666;">🎵 随机起始音，上行播放7个白键音（覆盖目标音区间）</span>
                         </div>
                     </div>
                     <div class="controls-row" style="margin-top: 8px;">
@@ -1195,6 +1195,9 @@ function replayCurrentNote() {
 /**
  * 获取八度参考音阶的音符索引列表
  * 根据选择的模式返回不同的参考音集合
+ * 
+ * chromatic/diatonic 模式：随机选择起始音，上行播放一个八度（12或7个音），
+ * 区间包含目标音但不固定从C开始，避免暴露目标音位置。
  */
 function getOctaveRefNotes() {
     const mode = document.getElementById('octaveRefMode').value;
@@ -1203,22 +1206,35 @@ function getOctaveRefNotes() {
 
     switch (mode) {
         case 'chromatic': {
-            // 完整半音阶：答案所在八度的 C → B（12个音）
-            const start = ALL_NOTES.findIndex(n => n.noteName === 'C' && n.octave === ansOctave);
-            const end = ALL_NOTES.findIndex(n => n.noteName === 'B' && n.octave === ansOctave);
-            if (start === -1 || end === -1) return [];
+            // 完整半音阶（12个半音）：随机起始，上行12个音，确保包含目标音
+            // 起始音范围：[answerIndex - 11, answerIndex]，从中随机选一个
+            const minStart = Math.max(0, answerIndex - 11);
+            const maxStart = Math.min(answerIndex, ALL_NOTES.length - 12);
+            if (maxStart < minStart) return [];
+            const start = minStart + Math.floor(Math.random() * (maxStart - minStart + 1));
             const notes = [];
-            for (let i = start; i <= end; i++) notes.push(i);
+            for (let i = start; i < start + 12 && i < ALL_NOTES.length; i++) notes.push(i);
             return notes;
         }
         case 'diatonic': {
-            // 自然音阶：答案所在八度的白键（C D E F G A B，共7个音）
-            const start = ALL_NOTES.findIndex(n => n.noteName === 'C' && n.octave === ansOctave);
-            const end = ALL_NOTES.findIndex(n => n.noteName === 'B' && n.octave === ansOctave);
-            if (start === -1 || end === -1) return [];
+            // 自然音阶（7个白键音）：随机起始白键，上行7个白键音，确保包含目标音
+            // 先收集全部白键索引
+            const whiteKeys = [];
+            for (let i = 0; i < ALL_NOTES.length; i++) {
+                if (!ALL_NOTES[i].isBlack) whiteKeys.push(i);
+            }
+            // 找到目标音最近的白键位置（用于确保区间覆盖目标音）
+            // 如果目标音是黑键，找它左右最近的白键
+            let targetWhitePos = whiteKeys.findIndex(idx => idx >= answerIndex);
+            if (targetWhitePos === -1) targetWhitePos = whiteKeys.length - 1;
+            // 起始白键范围：最多往前6个白键，最少就是目标白键自身
+            const minWPos = Math.max(0, targetWhitePos - 6);
+            const maxWPos = Math.min(targetWhitePos, whiteKeys.length - 7);
+            if (maxWPos < minWPos) return [];
+            const startWPos = minWPos + Math.floor(Math.random() * (maxWPos - minWPos + 1));
             const notes = [];
-            for (let i = start; i <= end; i++) {
-                if (!ALL_NOTES[i].isBlack) notes.push(i);
+            for (let i = startWPos; i < startWPos + 7 && i < whiteKeys.length; i++) {
+                notes.push(whiteKeys[i]);
             }
             return notes;
         }
@@ -1558,8 +1574,8 @@ function setupOctaveRefModeListener() {
     const descEl = document.getElementById('octaveRefDesc');
 
     const descriptions = {
-        chromatic: '🎵 播放目标音所在八度的全部12个半音（C C# D D# ... B）',
-        diatonic: '🎵 播放目标音所在八度的白键音阶（do re mi fa sol la si）',
+        chromatic: '🎵 随机起始音，上行播放12个半音（覆盖目标音区间，起点每次不同）',
+        diatonic: '🎵 随机起始白键，上行播放7个白键音（覆盖目标音区间，起点每次不同）',
         context: '🎵 以目标音为中心，播放前后指定范围内的所有半音',
         tonic: '🎵 仅播放目标音所在八度的主音 C（最简洁，难度最高）'
     };
