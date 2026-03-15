@@ -1258,10 +1258,16 @@ function getOctaveRefNotes() {
             return notes;
         }
         case 'context': {
-            // 上下文窗口：以目标音为中心，前后 N 个半音
+            // 上下文窗口：目标音在窗口内随机位置，总宽度为 2*range+1 个半音
             const range = parseInt(document.getElementById('contextRange').value);
-            const start = Math.max(0, answerIndex - range);
-            const end = Math.min(ALL_NOTES.length - 1, answerIndex + range);
+            const windowSize = 2 * range + 1;
+            // 目标音在窗口内的偏移量随机：0 ~ windowSize-1
+            // 即窗口起始 = answerIndex - offset, 目标音在 offset 位置
+            const minOffset = Math.max(0, answerIndex - (ALL_NOTES.length - 1) + (windowSize - 1));
+            const maxOffset = Math.min(windowSize - 1, answerIndex);
+            const offset = minOffset + Math.floor(Math.random() * (maxOffset - minOffset + 1));
+            const start = Math.max(0, answerIndex - offset);
+            const end = Math.min(ALL_NOTES.length - 1, start + windowSize - 1);
             const notes = [];
             for (let i = start; i <= end; i++) notes.push(i);
             return notes;
@@ -1734,7 +1740,7 @@ function setupOctaveRefModeListener() {
     const descriptions = {
         chromatic: '🎵 随机起始音，上行播放12个半音（覆盖目标音区间，起点每次不同）',
         diatonic: '🎵 随机起始白键，上行播放7个白键音（覆盖目标音区间，起点每次不同）',
-        context: '🎵 以目标音为中心，播放前后指定范围内的所有半音',
+        context: '🎵 播放目标音附近指定范围内的半音序列，目标音在窗口内位置随机',
         tonic: '🎵 仅播放目标音所在八度的主音 C（最简洁，难度最高）',
         standardA: '🎵 播放标准A (A4=440Hz) 作为音高锚点，专业调音参考',
         interval: '🎵 从目标音所在八度的C出发，播放指定音程作为参考'
