@@ -14,6 +14,8 @@ app = Flask(__name__, static_folder='static')
 app_config = {
     'audio_format': 'mp3',
     'velocity_layers': ['pp', 'p', 'mp', 'mf', 'f', 'ff'],
+    'default_low_note': 'C4',
+    'default_high_note': 'A6',
 }
 
 
@@ -21,7 +23,9 @@ app_config = {
 def index():
     return render_template('index.html',
                            audio_format=app_config['audio_format'],
-                           velocity_layers=app_config['velocity_layers'])
+                           velocity_layers=app_config['velocity_layers'],
+                           default_low_note=app_config['default_low_note'],
+                           default_high_note=app_config['default_high_note'])
 
 
 @app.route('/samples/<path:filename>')
@@ -40,10 +44,16 @@ if __name__ == '__main__':
                         help='音频采样格式 (默认 mp3)')
     parser.add_argument('--velocity-layers', nargs='+', default=['pp', 'p', 'mp', 'mf', 'f', 'ff'],
                         help='可用的力度层列表')
+    parser.add_argument('--default-low-note', default='C4',
+                        help='默认低音范围 (默认 C4)')
+    parser.add_argument('--default-high-note', default='A6',
+                        help='默认高音范围 (默认 A6)')
     args = parser.parse_args()
 
     app_config['audio_format'] = args.audio_format
     app_config['velocity_layers'] = args.velocity_layers
+    app_config['default_low_note'] = args.default_low_note
+    app_config['default_high_note'] = args.default_high_note
 
     print(f"🎹 视唱练耳训练工具启动中...")
     print(f"🌐 访问地址: http://{args.host}:{args.port}")

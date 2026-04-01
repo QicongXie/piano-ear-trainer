@@ -519,11 +519,8 @@
 
         <!-- 模式选择 -->
         <div class="mode-tabs">
-            <div class="mode-tab active" data-mode="free" onclick="switchMode('free')">
-                🎯 自由练习
-            </div>
-            <div class="mode-tab" data-mode="octave" onclick="switchMode('octave')">
-                🎼 八度辅助
+            <div class="mode-tab active" data-mode="training" onclick="switchMode('training')">
+                🎵 音感训练
             </div>
             <div class="mode-tab" data-mode="freeplay" onclick="switchMode('freeplay')">
                 🎹 自由弹奏
@@ -542,16 +539,16 @@
                     <select id="highNote"></select>
                 </div>
                 <button class="primary" id="btnNewQuestion" onclick="newQuestion()">
-                    🎲 出题
+                    🎲 出题 (A)
                 </button>
                 <button class="secondary" id="btnReplay" onclick="replayCurrentNote()" disabled>
-                    🔁 重听
+                    🔁 重听 (S)
                 </button>
                 <button class="accent" id="btnPlayOctave" onclick="playOctaveHint()" style="display:none;">
-                    🎼 播放八度参考
+                    🎼 播放参考 (D)
                 </button>
                 <button class="secondary" id="btnShowAnswer" onclick="showAnswer()" disabled>
-                    💡 显示答案
+                    💡 显示答案 (F)
                 </button>
             </div>
         </div>
@@ -566,7 +563,7 @@
                 <div class="accordion-content">
                     <div class="controls-row">
                         <div class="control-group">
-                            <label>八度参考播放速度:</label>
+                            <label>参考播放速度:</label>
                             <select id="octaveSpeed">
                                 <option value="300">快速 (300ms)</option>
                                 <option value="500" selected>中速 (500ms)</option>
@@ -574,8 +571,9 @@
                             </select>
                         </div>
                         <div class="control-group">
-                            <label>八度参考模式:</label>
+                            <label>参考模式:</label>
                             <select id="octaveRefMode">
+                                <option value="none">无参考（纯听音）</option>
                                 <option value="chromatic">完整半音阶（12音）</option>
                                 <option value="diatonic" selected>自然音阶（7音）</option>
                                 <option value="context">上下文窗口</option>
@@ -672,7 +670,7 @@
 
         <!-- 提示区域 -->
         <div class="hint-area" id="hintArea">
-            <span class="hint-info">选择音域范围，开始练耳之旅 🎵</span>
+        <span class="hint-info">选择音域范围和参考模式，开始音感训练之旅 🎵</span>
         </div>
 
         <!-- 钢琴键盘 -->
@@ -758,6 +756,8 @@ const AVAILABLE_SAMPLES = [
 // 后端传入的配置：音频格式和可用力度层
 const AUDIO_FORMAT = '{{ audio_format }}';
 const VELOCITY_LAYERS = {{ velocity_layers | tojson }};
+const DEFAULT_LOW_NOTE = '{{ default_low_note }}';
+const DEFAULT_HIGH_NOTE = '{{ default_high_note }}';
 
 // 力度层的中文描述
 const VELOCITY_LABELS = {
@@ -776,7 +776,7 @@ let audioCtx = null;
 const sampleBuffers = {};
 
 // 游戏状态
-let currentMode = 'free';   // 'free' | 'octave' | 'freeplay'
+let currentMode = 'training';   // 'training' | 'freeplay'
 let currentAnswer = null;   // 当前正确答案的音符对象
 let isAnswered = false;     // 当前题目是否已作答
 let lowNoteIndex = 0;       // 低音范围索引
@@ -789,6 +789,8 @@ let freeplayOctave = 4;  // 自由弹奏当前八度
 let activeKeySources = {};  // 自由弹奏时同时按下的键 -> {source, gain}
 let lastWrongIndex = null;  // 最近一次选错的按键索引，用于允许重复弹奏
 let currentVelocityLayer = 'mp'; // 当前使用的力度层
+let cachedOctaveRefNotes = null;  // 缓存的八度参考音列表，出题时生成，重听时复用
+let cachedIntervalRefNotes = null;  // 缓存的音程参考数据，出题时生成，重听时复用
 
 // ========== 音频引擎 ==========
 
@@ -1082,13 +1084,18 @@ function populateSelects() {
         highSelect.appendChild(opt2);
     }
 
-    // 默认范围: C3 - C5 (适合初学者)
-    const c3Idx = ALL_NOTES.findIndex(n => n.name === 'C3');
-    const c5Idx = ALL_NOTES.findIndex(n => n.name === 'C5');
-    lowSelect.value = c3Idx;
-    highSelect.value = c5Idx;
-    lowNoteIndex = c3Idx;
-    highNoteIndex = c5Idx;
+    // 默认范围: 由后端配置传入
+    const defaultLowIdx = ALL_NOTES.findIndex(n => n.name === DEFAULT_LOW_NOTE);
+    const defaultHighIdx = ALL_NOTES.findIndex(n => n.name === DEFAULT_HIGH_NOTE);
+    // 如果配置的音名无效则回退到 C3 - C5
+    const fallbackLowIdx = ALL_NOTES.findIndex(n => n.name === 'C4');
+    const fallbackHighIdx = ALL_NOTES.findIndex(n => n.name === 'A6');
+    const lowIdx = defaultLowIdx >= 0 ? defaultLowIdx : fallbackLowIdx;
+    const highIdx = defaultHighIdx >= 0 ? defaultHighIdx : fallbackHighIdx;
+    lowSelect.value = lowIdx;
+    highSelect.value = highIdx;
+    lowNoteIndex = lowIdx;
+    highNoteIndex = highIdx;
 
     lowSelect.addEventListener('change', () => {
         lowNoteIndex = parseInt(lowSelect.value);
@@ -1121,8 +1128,8 @@ function switchMode(mode) {
         t.classList.toggle('active', t.dataset.mode === mode);
     });
 
-    const btnOctave = document.getElementById('btnPlayOctave');
-    btnOctave.style.display = mode === 'octave' ? 'inline-block' : 'none';
+    // 音感训练模式下，根据参考模式决定是否显示播放参考按钮
+    updateRefButtonVisibility();
 
     // 自由弹奏模式的显示/隐藏
     const isFreeplay = mode === 'freeplay';
@@ -1153,10 +1160,22 @@ function switchMode(mode) {
     resetQuestion();
 }
 
+/**
+ * 根据当前参考模式更新「播放参考」按钮的可见性
+ */
+function updateRefButtonVisibility() {
+    const btnOctave = document.getElementById('btnPlayOctave');
+    const refMode = document.getElementById('octaveRefMode').value;
+    // 音感训练模式下，非「无参考」时显示按钮
+    btnOctave.style.display = (currentMode === 'training' && refMode !== 'none') ? 'inline-block' : 'none';
+}
+
 function resetQuestion() {
     currentAnswer = null;
     isAnswered = false;
     lastWrongIndex = null;
+    cachedOctaveRefNotes = null;
+    cachedIntervalRefNotes = null;
     clearKeyHighlights();
     document.getElementById('btnReplay').disabled = true;
     document.getElementById('btnShowAnswer').disabled = true;
@@ -1181,6 +1200,8 @@ function newQuestion() {
     clearKeyHighlights();
     isAnswered = false;
     lastWrongIndex = null;
+    cachedOctaveRefNotes = null;
+    cachedIntervalRefNotes = null;
 
     // 随机选一个音
     const range = highNoteIndex - lowNoteIndex + 1;
@@ -1190,20 +1211,20 @@ function newQuestion() {
     document.getElementById('btnReplay').disabled = false;
     document.getElementById('btnShowAnswer').disabled = false;
 
-    if (currentMode === 'octave') {
-        // 八度辅助模式: 先找到答案所在的八度起点（C音开始）
-        document.getElementById('statusText').textContent = '八度辅助模式 - 先听参考音阶，再听目标音';
-        document.getElementById('hintArea').innerHTML =
-            '<span class="hint-info">🎼 先点击「播放八度参考」听一遍音阶，然后听目标音来判断</span>';
-        // 直接播放目标音
-        playNote(currentAnswer.midi);
-        flashKey(randomIdx);
-    } else {
-        // 自由模式
-        document.getElementById('statusText').textContent = '自由练习模式 - 听音辨音';
+    const refMode = document.getElementById('octaveRefMode').value;
+    if (refMode === 'none') {
+        // 无参考模式：纯听音辨音
+        document.getElementById('statusText').textContent = '音感训练 - 纯听音辨音';
         document.getElementById('hintArea').innerHTML =
             '<span class="hint-info">🎵 已播放一个音，请在键盘上点击你认为的答案</span>';
         playNote(currentAnswer.midi);
+    } else {
+        // 有参考模式：先播放目标音，可借助参考来判断
+        document.getElementById('statusText').textContent = '音感训练 - 先听目标音，可借助参考辅助';
+        document.getElementById('hintArea').innerHTML =
+            '<span class="hint-info">🎼 已播放目标音，可点击「播放参考」辅助判断</span>';
+        playNote(currentAnswer.midi);
+        flashKey(randomIdx);
     }
 }
 
@@ -1211,7 +1232,7 @@ function replayCurrentNote() {
     if (!currentAnswer) return;
     playNote(currentAnswer.midi);
     // 不在自由模式下闪烁
-    if (currentMode === 'octave' && !isAnswered) {
+    if (currentMode === 'training' && !isAnswered) {
         // 不做键盘提示
     }
 }
@@ -1407,13 +1428,20 @@ async function playOctaveHint() {
 
     if (mode === 'interval') {
         // ====== 音程参考模式：特殊播放逻辑 ======
-        const intervalData = getIntervalRefNotes();
+        // 使用缓存的音程参考数据，避免重听时重新随机
+        if (!cachedIntervalRefNotes) {
+            cachedIntervalRefNotes = getIntervalRefNotes();
+        }
+        const intervalData = cachedIntervalRefNotes;
         if (!intervalData || intervalData.notes.length === 0) {
             document.getElementById('hintArea').innerHTML =
                 '<span class="hint-wrong">⚠️ 无法生成音程参考，请检查设置</span>';
             document.getElementById('btnPlayOctave').disabled = false;
             return;
         }
+
+        // 自动滚动钢琴键盘到参考音区间
+        scrollPianoToRange(intervalData.notes.map(n => n.index));
 
         const dirLabel = { up: '上行', down: '下行', both: '先上后下' };
         document.getElementById('hintArea').innerHTML =
@@ -1443,7 +1471,11 @@ async function playOctaveHint() {
     }
 
     // ====== 其他模式：通用播放逻辑 ======
-    const refNotes = getOctaveRefNotes();
+    // 使用缓存的参考音列表，避免重听时重新随机起始位置
+    if (!cachedOctaveRefNotes) {
+        cachedOctaveRefNotes = getOctaveRefNotes();
+    }
+    const refNotes = cachedOctaveRefNotes;
 
     if (!Array.isArray(refNotes) || refNotes.length === 0) {
         document.getElementById('hintArea').innerHTML =
@@ -1451,6 +1483,9 @@ async function playOctaveHint() {
         document.getElementById('btnPlayOctave').disabled = false;
         return;
     }
+
+    // 自动滚动钢琴键盘到参考音区间
+    scrollPianoToRange(refNotes);
 
     document.getElementById('hintArea').innerHTML =
         `<span class="hint-info">🎼 正在播放${modeNames[mode]}参考（${refNotes.length}个音）...</span>`;
@@ -1482,6 +1517,30 @@ async function playOctaveHint() {
 function flashKey(index) {
     // 短暂闪烁效果（仅在八度模式下使用）
     // 这里不闪烁，因为不应该提示答案
+}
+
+/**
+ * 将钢琴键盘平滑滚动到指定音符索引范围的中心位置
+ * @param {number[]} noteIndices - ALL_NOTES 索引数组
+ */
+function scrollPianoToRange(noteIndices) {
+    if (!noteIndices || noteIndices.length === 0) return;
+    const wrapper = document.querySelector('.piano-wrapper');
+    if (!wrapper) return;
+
+    // 找到范围内最左和最右的琴键元素
+    const firstEl = document.querySelector(`[data-index="${noteIndices[0]}"]`);
+    const lastEl = document.querySelector(`[data-index="${noteIndices[noteIndices.length - 1]}"]`);
+    if (!firstEl || !lastEl) return;
+
+    // 计算范围的中心位置（相对于钢琴容器）
+    const firstLeft = firstEl.offsetLeft;
+    const lastRight = lastEl.offsetLeft + lastEl.offsetWidth;
+    const rangeCenter = (firstLeft + lastRight) / 2;
+
+    // 滚动使范围中心处于可视区域中央
+    const targetScroll = rangeCenter - wrapper.clientWidth / 2;
+    wrapper.scrollTo({ left: targetScroll, behavior: 'smooth' });
 }
 
 function onKeyClick(noteIndex) {
@@ -1738,6 +1797,7 @@ function setupOctaveRefModeListener() {
     const intervalDirectionGroup = document.getElementById('intervalDirectionGroup');
 
     const descriptions = {
+        none: '🎯 不播放任何参考音，纯粹依靠听觉辨别音高（最高难度）',
         chromatic: '🎵 随机起始音，上行播放12个半音（覆盖目标音区间，起点每次不同）',
         diatonic: '🎵 随机起始白键，上行播放7个白键音（覆盖目标音区间，起点每次不同）',
         context: '🎵 播放目标音附近指定范围内的半音序列，目标音在窗口内位置随机',
@@ -1752,6 +1812,8 @@ function setupOctaveRefModeListener() {
         intervalTypeGroup.style.display = mode === 'interval' ? 'flex' : 'none';
         intervalDirectionGroup.style.display = mode === 'interval' ? 'flex' : 'none';
         descEl.textContent = descriptions[mode] || '';
+        // 联动更新播放参考按钮的可见性
+        updateRefButtonVisibility();
     }
 
     modeSelect.addEventListener('change', update);
@@ -1847,16 +1909,30 @@ document.addEventListener('keydown', (e) => {
         }
     }
 
-    if (e.code === 'Space') {
+    // A - 出题
+    if (e.code === 'KeyA') {
+        e.preventDefault();
+        newQuestion();
+    }
+    // S - 重听
+    if (e.code === 'KeyS') {
         e.preventDefault();
         if (currentAnswer && !isAnswered) {
             replayCurrentNote();
-        } else {
-            newQuestion();
         }
     }
-    if (e.code === 'KeyO' && currentMode === 'octave') {
-        playOctaveHint();
+    // D - 播放参考
+    if (e.code === 'KeyD' && currentMode === 'training') {
+        e.preventDefault();
+        const refMode = document.getElementById('octaveRefMode').value;
+        if (refMode !== 'none') playOctaveHint();
+    }
+    // F - 显示答案
+    if (e.code === 'KeyF') {
+        e.preventDefault();
+        if (currentAnswer && !isAnswered) {
+            showAnswer();
+        }
     }
 });
 

@@ -15,6 +15,10 @@ AUDIO_FORMAT="${AUDIO_FORMAT:-mp3}"
 # 若只需单力度（节省空间）: VELOCITY_LAYERS="mp"
 VELOCITY_LAYERS="${VELOCITY_LAYERS:-pp p mp mf f ff}"
 
+# 默认音域范围: 低音和高音边界（音名格式如 C4, A6, F#3 等）
+DEFAULT_LOW_NOTE="${DEFAULT_LOW_NOTE:-C4}"
+DEFAULT_HIGH_NOTE="${DEFAULT_HIGH_NOTE:-A6}"
+
 # 杀死之前占用端口的进程
 if lsof -i :${PORT} -t >/dev/null 2>&1; then
     echo "⚠️  端口 ${PORT} 被占用，正在终止旧进程..."
@@ -58,6 +62,9 @@ ARGS="--host $HOST --port $PORT --audio-format $AUDIO_FORMAT"
 # 传递可用的力度层列表
 ARGS="$ARGS --velocity-layers $VELOCITY_LAYERS"
 
+# 传递默认音域范围
+ARGS="$ARGS --default-low-note $DEFAULT_LOW_NOTE --default-high-note $DEFAULT_HIGH_NOTE"
+
 if [ "$DEBUG" = "true" ]; then
     ARGS="$ARGS --debug"
 fi
@@ -70,6 +77,7 @@ echo "  📡 地址: http://${HOST}:${PORT}"
 echo "  🔧 调试: ${DEBUG}"
 echo "  🎵 格式: ${AUDIO_FORMAT}"
 echo "  🔊 力度层: ${VELOCITY_LAYERS}"
+echo "  🎹 默认音域: ${DEFAULT_LOW_NOTE} - ${DEFAULT_HIGH_NOTE}"
 echo "  📝 日志: ${LOG_FILE}"
 echo "============================================"
 echo ""
