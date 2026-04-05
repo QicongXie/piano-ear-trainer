@@ -1261,22 +1261,45 @@ function getOctaveRefNotes() {
             return notes;
         }
         case 'diatonic': {
-            // 自然音阶（7个白键音）：随机起始白键，上行7个白键音，确保包含目标音
+            // 自然音阶（7个白键音）：随机起始白键，上行7个白键音
+            // 如果目标音是白键，确保包含目标音；
+            // 如果目标音是黑键，确保包含其两侧的白键，让学生可以推断出中间的黑键位置
             const whiteKeys = [];
             for (let i = 0; i < ALL_NOTES.length; i++) {
                 if (!ALL_NOTES[i].isBlack) whiteKeys.push(i);
             }
-            let targetWhitePos = whiteKeys.findIndex(idx => idx >= answerIndex);
-            if (targetWhitePos === -1) targetWhitePos = whiteKeys.length - 1;
-            const minWPos = Math.max(0, targetWhitePos - 6);
-            const maxWPos = Math.min(targetWhitePos, whiteKeys.length - 7);
-            if (maxWPos < minWPos) return [];
-            const startWPos = minWPos + Math.floor(Math.random() * (maxWPos - minWPos + 1));
-            const notes = [];
-            for (let i = startWPos; i < startWPos + 7 && i < whiteKeys.length; i++) {
-                notes.push(whiteKeys[i]);
+            const isTargetBlack = ALL_NOTES[answerIndex].isBlack;
+            let lowerWhitePos, upperWhitePos;
+            if (isTargetBlack) {
+                // 目标音是黑键：找到左右两侧的白键位置
+                upperWhitePos = whiteKeys.findIndex(idx => idx > answerIndex);
+                if (upperWhitePos === -1) upperWhitePos = whiteKeys.length - 1;
+                lowerWhitePos = upperWhitePos - 1;
+                if (lowerWhitePos < 0) lowerWhitePos = 0;
+                // 确保7个白键同时覆盖 lowerWhitePos 和 upperWhitePos
+                const minWPos = Math.max(0, upperWhitePos - 6);
+                const maxWPos = Math.min(lowerWhitePos, whiteKeys.length - 7);
+                if (maxWPos < minWPos) return [];
+                const startWPos = minWPos + Math.floor(Math.random() * (maxWPos - minWPos + 1));
+                const notes = [];
+                for (let i = startWPos; i < startWPos + 7 && i < whiteKeys.length; i++) {
+                    notes.push(whiteKeys[i]);
+                }
+                return notes;
+            } else {
+                // 目标音是白键：确保包含目标音
+                let targetWhitePos = whiteKeys.findIndex(idx => idx >= answerIndex);
+                if (targetWhitePos === -1) targetWhitePos = whiteKeys.length - 1;
+                const minWPos = Math.max(0, targetWhitePos - 6);
+                const maxWPos = Math.min(targetWhitePos, whiteKeys.length - 7);
+                if (maxWPos < minWPos) return [];
+                const startWPos = minWPos + Math.floor(Math.random() * (maxWPos - minWPos + 1));
+                const notes = [];
+                for (let i = startWPos; i < startWPos + 7 && i < whiteKeys.length; i++) {
+                    notes.push(whiteKeys[i]);
+                }
+                return notes;
             }
-            return notes;
         }
         case 'context': {
             // 上下文窗口：目标音在窗口内随机位置，总宽度为 2*range+1 个半音
@@ -1506,8 +1529,11 @@ async function playOctaveHint() {
     }
 
     document.getElementById('btnPlayOctave').disabled = false;
+    // 如果是自然音阶模式且目标音是黑键，额外提示用户
+    const isDiatonicBlackKey = mode === 'diatonic' && ALL_NOTES[currentAnswer.index].isBlack;
+    const extraHint = isDiatonicBlackKey ? '<br>⚠️ 注意：目标音是升/降音（黑键），位于两个参考白键音之间' : '';
     document.getElementById('hintArea').innerHTML =
-        `<span class="hint-info">🎵 ${modeNames[mode]}参考播放完毕，现在重听目标音来判断吧！</span>`;
+        `<span class="hint-info">🎵 ${modeNames[mode]}参考播放完毕，现在重听目标音来判断吧！${extraHint}</span>`;
 
     // 自动重播目标音
     await sleep(300);
@@ -1799,7 +1825,7 @@ function setupOctaveRefModeListener() {
     const descriptions = {
         none: '🎯 不播放任何参考音，纯粹依靠听觉辨别音高（最高难度）',
         chromatic: '🎵 随机起始音，上行播放12个半音（覆盖目标音区间，起点每次不同）',
-        diatonic: '🎵 随机起始白键，上行播放7个白键音（覆盖目标音区间，起点每次不同）',
+        diatonic: '🎵 随机起始白键，上行播放7个白键音（覆盖目标音区间，起点每次不同；若目标音为黑键则位于两个参考白键之间）',
         context: '🎵 播放目标音附近指定范围内的半音序列，目标音在窗口内位置随机',
         tonic: '🎵 仅播放目标音所在八度的主音 C（最简洁，难度最高）',
         standardA: '🎵 播放标准A (A4=440Hz) 作为音高锚点，专业调音参考',

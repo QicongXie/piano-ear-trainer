@@ -4,6 +4,9 @@ SalamanderGrandPianoV3_48khz24bit/
 # 转换后的网页用采样文件（由 prepare_samples.py 生成）
 static/samples/
 
+# docs/samples/ 不忽略，用于 GitHub Pages 部署
+!docs/samples/
+
 # 应用日志
 app.log
 
