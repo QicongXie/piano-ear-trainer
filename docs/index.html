@@ -753,11 +753,11 @@ const AVAILABLE_SAMPLES = [
     'A6','C7','D#7','F#7','A7','C8'
 ];
 
-// 后端传入的配置：音频格式和可用力度层
-const AUDIO_FORMAT = '{{ audio_format }}';
-const VELOCITY_LAYERS = {{ velocity_layers | tojson }};
-const DEFAULT_LOW_NOTE = '{{ default_low_note }}';
-const DEFAULT_HIGH_NOTE = '{{ default_high_note }}';
+// 静态部署配置：音频格式和可用力度层
+const AUDIO_FORMAT = 'mp3';
+const VELOCITY_LAYERS = ["pp", "p", "mp", "mf", "f", "ff"];
+const DEFAULT_LOW_NOTE = 'C4';
+const DEFAULT_HIGH_NOTE = 'A6';
 
 // 力度层的中文描述
 const VELOCITY_LABELS = {
@@ -947,11 +947,11 @@ async function loadSamples() {
             promises.push((async () => {
                 try {
                     // 力度层后缀: A0_mp.mp3, A0_ff.wav 等
-                    const url = `/samples/${encodeURIComponent(name)}_${layer}.${AUDIO_FORMAT}`;
+                    const url = `samples/${encodeURIComponent(name)}_${layer}.${AUDIO_FORMAT}`;
                     const response = await fetch(url);
                     if (!response.ok) {
                         // 如果该力度层文件不存在，尝试无后缀版本（兼容旧版单力度）
-                        const fallbackUrl = `/samples/${encodeURIComponent(name)}.${AUDIO_FORMAT}`;
+                        const fallbackUrl = `samples/${encodeURIComponent(name)}.${AUDIO_FORMAT}`;
                         const fbResponse = await fetch(fallbackUrl);
                         if (fbResponse.ok) {
                             const arrayBuffer = await fbResponse.arrayBuffer();
