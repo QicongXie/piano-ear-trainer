@@ -774,6 +774,10 @@ let audioCtx = null;
 // 采样缓冲区: sampleBuffers[velocityLayer][sampleName] = AudioBuffer
 // 当只有单力度时: sampleBuffers['mp'][sampleName]
 const sampleBuffers = {};
+// 已加载的力度层集合（用于懒加载判断）
+const loadedLayers = new Set();
+// 正在加载中的力度层 Promise（防止重复加载）
+const loadingLayerPromises = {};
 
 // 游戏状态
 let currentMode = 'training';   // 'training' | 'freeplay'
@@ -871,12 +875,12 @@ function playNote(midi, duration = 3.0, polyphonic = false, velocityOverride = n
     const layerBuffers = sampleBuffers[velLayer];
     const buffer = layerBuffers ? layerBuffers[sampleName] : null;
 
-    // 如果指定力度层没有采样，尝试 fallback 到 mp 层
+    // 如果指定力度层没有采样，尝试 fallback 到 mf 层（默认加载层）
     let finalBuffer = buffer;
-    if (!finalBuffer && sampleBuffers['mp']) {
-        finalBuffer = sampleBuffers['mp'][sampleName];
+    if (!finalBuffer && sampleBuffers['mf']) {
+        finalBuffer = sampleBuffers['mf'][sampleName];
     }
-    // 再 fallback: 尝试任何可用层
+    // 再 fallback: 尝试任何已加载的层
     if (!finalBuffer) {
         for (const layer of VELOCITY_LAYERS) {
             if (sampleBuffers[layer] && sampleBuffers[layer][sampleName]) {
@@ -884,6 +888,11 @@ function playNote(midi, duration = 3.0, polyphonic = false, velocityOverride = n
                 break;
             }
         }
+    }
+
+    // 如果该力度层尚未加载，异步触发后台加载（下次播放时就有了）
+    if (!loadedLayers.has(velLayer)) {
+        loadSingleLayer(velLayer);
     }
 
     if (!finalBuffer) {
@@ -922,7 +931,81 @@ function playNote(midi, duration = 3.0, polyphonic = false, velocityOverride = n
 }
 
 /**
- * 加载所有采样文件（支持多力度层）
+ * 加载单个力度层的所有采样（懒加载核心函数）
+ * @param {string} layer - 力度层名称，如 'mf', 'pp' 等
+ * @param {function} [onProgress] - 进度回调 (loaded, total)
+ * @returns {Promise<number>} 成功加载的采样数
+ */
+async function loadSingleLayer(layer, onProgress) {
+    // 如果已加载，直接返回
+    if (loadedLayers.has(layer)) {
+        return Object.keys(sampleBuffers[layer] || {}).length;
+    }
+    // 如果正在加载中，等待已有的 Promise
+    if (loadingLayerPromises[layer]) {
+        return loadingLayerPromises[layer];
+    }
+
+    const promise = (async () => {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        sampleBuffers[layer] = {};
+        const total = AVAILABLE_SAMPLES.length;
+        let loaded = 0;
+
+        const promises = AVAILABLE_SAMPLES.map(name => (async () => {
+            try {
+                const url = `/samples/${encodeURIComponent(name)}_${layer}.${AUDIO_FORMAT}`;
+                const response = await fetch(url);
+                if (!response.ok) {
+                    // 如果该力度层文件不存在，尝试无后缀版本（兼容旧版单力度）
+                    const fallbackUrl = `/samples/${encodeURIComponent(name)}.${AUDIO_FORMAT}`;
+                    const fbResponse = await fetch(fallbackUrl);
+                    if (fbResponse.ok) {
+                        const arrayBuffer = await fbResponse.arrayBuffer();
+                        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                        sampleBuffers[layer][name] = audioBuffer;
+                    }
+                } else {
+                    const arrayBuffer = await response.arrayBuffer();
+                    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                    sampleBuffers[layer][name] = audioBuffer;
+                }
+            } catch (e) {
+                // 静默失败，会在播放时 fallback
+            }
+            loaded++;
+            if (onProgress) onProgress(loaded, total);
+        })());
+
+        await Promise.all(promises);
+        const count = Object.keys(sampleBuffers[layer]).length;
+        loadedLayers.add(layer);
+        delete loadingLayerPromises[layer];
+        console.log(`力度层 ${layer}: 加载了 ${count} 个采样`);
+        return count;
+    })();
+
+    loadingLayerPromises[layer] = promise;
+    return promise;
+}
+
+/**
+ * 确保指定的力度层已加载（供播放时调用）
+ * 如果未加载，会显示简短提示并加载
+ */
+async function ensureLayerLoaded(layer) {
+    if (loadedLayers.has(layer)) return;
+    const statusEl = document.getElementById('statusText');
+    const origText = statusEl.textContent;
+    statusEl.textContent = `⏳ 正在加载 ${VELOCITY_LABELS[layer] || layer} 力度采样...`;
+    await loadSingleLayer(layer);
+    statusEl.textContent = origText;
+}
+
+/**
+ * 初始加载：只加载默认力度层（mf），大幅减少首屏流量
  */
 async function loadSamples() {
     if (!audioCtx) {
@@ -932,60 +1015,22 @@ async function loadSamples() {
     const loadingBar = document.getElementById('loadingBar');
     const loadingText = document.querySelector('.loading-text');
 
-    // 初始化各力度层的缓冲区
-    for (const layer of VELOCITY_LAYERS) {
-        sampleBuffers[layer] = {};
-    }
+    // 只加载默认力度层 mf
+    const defaultLayer = 'mf';
+    const total = AVAILABLE_SAMPLES.length;
 
-    const total = AVAILABLE_SAMPLES.length * VELOCITY_LAYERS.length;
-    let loaded = 0;
-
-    const promises = [];
-
-    for (const layer of VELOCITY_LAYERS) {
-        for (const name of AVAILABLE_SAMPLES) {
-            promises.push((async () => {
-                try {
-                    // 力度层后缀: A0_mp.mp3, A0_ff.wav 等
-                    const url = `/samples/${encodeURIComponent(name)}_${layer}.${AUDIO_FORMAT}`;
-                    const response = await fetch(url);
-                    if (!response.ok) {
-                        // 如果该力度层文件不存在，尝试无后缀版本（兼容旧版单力度）
-                        const fallbackUrl = `/samples/${encodeURIComponent(name)}.${AUDIO_FORMAT}`;
-                        const fbResponse = await fetch(fallbackUrl);
-                        if (fbResponse.ok) {
-                            const arrayBuffer = await fbResponse.arrayBuffer();
-                            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                            sampleBuffers[layer][name] = audioBuffer;
-                        }
-                    } else {
-                        const arrayBuffer = await response.arrayBuffer();
-                        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                        sampleBuffers[layer][name] = audioBuffer;
-                    }
-                } catch (e) {
-                    // 静默失败，会在播放时 fallback
-                }
-                loaded++;
-                loadingBar.style.width = (loaded / total * 100) + '%';
-                if (loadingText) {
-                    loadingText.textContent = `🎹 正在加载钢琴采样... (${loaded}/${total})`;
-                }
-            })());
+    await loadSingleLayer(defaultLayer, (loaded, t) => {
+        loadingBar.style.width = (loaded / t * 100) + '%';
+        if (loadingText) {
+            loadingText.textContent = `🎹 正在加载钢琴采样... (${loaded}/${t})`;
         }
-    }
+    });
 
-    await Promise.all(promises);
     document.getElementById('loadingOverlay').classList.add('hidden');
 
-    // 统计加载情况
-    let totalLoaded = 0;
-    for (const layer of VELOCITY_LAYERS) {
-        const count = Object.keys(sampleBuffers[layer]).length;
-        totalLoaded += count;
-        console.log(`力度层 ${layer}: 加载了 ${count} 个采样`);
-    }
-    console.log(`共加载 ${totalLoaded} 个采样 (格式: ${AUDIO_FORMAT})`);
+    const count = Object.keys(sampleBuffers[defaultLayer] || {}).length;
+    console.log(`首屏加载完成: ${defaultLayer} 层 ${count} 个采样 (格式: ${AUDIO_FORMAT})`);
+    console.log(`其余力度层将在需要时按需加载`);
 }
 
 // ========== 钢琴键盘渲染 ==========
@@ -1529,11 +1574,8 @@ async function playOctaveHint() {
     }
 
     document.getElementById('btnPlayOctave').disabled = false;
-    // 如果是自然音阶模式且目标音是黑键，额外提示用户
-    const isDiatonicBlackKey = mode === 'diatonic' && ALL_NOTES[currentAnswer.index].isBlack;
-    const extraHint = isDiatonicBlackKey ? '<br>⚠️ 注意：目标音是升/降音（黑键），位于两个参考白键音之间' : '';
     document.getElementById('hintArea').innerHTML =
-        `<span class="hint-info">🎵 ${modeNames[mode]}参考播放完毕，现在重听目标音来判断吧！${extraHint}</span>`;
+        `<span class="hint-info">🎵 ${modeNames[mode]}参考播放完毕，现在重听目标音来判断吧！</span>`;
 
     // 自动重播目标音
     await sleep(300);
@@ -1800,15 +1842,32 @@ function setupVelocityControls() {
         fixedGroup.style.display = mode === 'fixed' ? 'flex' : 'none';
         if (mode === 'random') {
             descEl.textContent = `🎲 每次播放随机选择力度 (${VELOCITY_LAYERS.join(', ')})`;
+            // 随机模式：后台预加载所有力度层
+            preloadAllLayers();
         } else {
             const level = levelSelect.value;
             descEl.textContent = `🔊 使用 ${VELOCITY_LABELS[level] || level} 力度播放`;
+            // 固定力度：确保该力度层已加载
+            ensureLayerLoaded(level);
         }
     }
 
     modeSelect.addEventListener('change', update);
     levelSelect.addEventListener('change', update);
     update();
+}
+
+/**
+ * 后台预加载所有力度层（用于随机力度模式）
+ * 逐个加载，不阻塞UI
+ */
+async function preloadAllLayers() {
+    for (const layer of VELOCITY_LAYERS) {
+        if (!loadedLayers.has(layer)) {
+            await loadSingleLayer(layer);
+        }
+    }
+    console.log('所有力度层预加载完成');
 }
 
 // ========== 八度参考模式联动 ==========
@@ -1825,7 +1884,7 @@ function setupOctaveRefModeListener() {
     const descriptions = {
         none: '🎯 不播放任何参考音，纯粹依靠听觉辨别音高（最高难度）',
         chromatic: '🎵 随机起始音，上行播放12个半音（覆盖目标音区间，起点每次不同）',
-        diatonic: '🎵 随机起始白键，上行播放7个白键音（覆盖目标音区间，起点每次不同；若目标音为黑键则位于两个参考白键之间）',
+        diatonic: '🎵 随机起始白键，上行播放7个白键音（覆盖目标音区间，起点每次不同）',
         context: '🎵 播放目标音附近指定范围内的半音序列，目标音在窗口内位置随机',
         tonic: '🎵 仅播放目标音所在八度的主音 C（最简洁，难度最高）',
         standardA: '🎵 播放标准A (A4=440Hz) 作为音高锚点，专业调音参考',
