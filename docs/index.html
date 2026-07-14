@@ -174,6 +174,41 @@
         .correct .value { color: #4caf50; }
         .wrong .value { color: #e94560; }
         .total .value { color: #f5a623; }
+        .streak .value { color: #ff9800; }
+        .accuracy .value { color: #4dd0e1; }
+
+        /* 答错时错键上的方向/距离标注 */
+        .key-feedback-badge {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #e94560;
+            color: #fff;
+            font-size: 0.7em;
+            font-weight: bold;
+            padding: 1px 6px;
+            border-radius: 6px;
+            white-space: nowrap;
+            z-index: 20;
+            pointer-events: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+
+        /* 进步曲线面板 */
+        .curve-panel {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 15px 20px;
+            margin-top: 15px;
+        }
+        .curve-panel h3 {
+            font-size: 0.9em;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        #curveCanvas { width: 100%; height: 160px; display: block; }
 
         /* 提示信息 */
         .hint-area {
@@ -590,6 +625,13 @@
                                 <option value="none">不提示</option>
                             </select>
                         </div>
+                        <div class="control-group">
+                            <label>智能出题:</label>
+                            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+                                <input type="checkbox" id="smartWeight" checked style="cursor:pointer;">
+                                <span style="font-size:0.8em;color:#888;">薄弱音优先</span>
+                            </label>
+                        </div>
                     </div>
                     <div class="controls-row" style="margin-top: 8px;">
                         <div class="control-group" id="contextRangeGroup" style="display:none;">
@@ -665,6 +707,15 @@
                     <div class="value" id="totalCount">0</div>
                     <div class="label">总题数</div>
                 </div>
+                <div class="score-item streak" title="最高连对 0">
+                    <div class="value" id="streakCount">0</div>
+                    <div class="label">连对</div>
+                </div>
+                <div class="score-item accuracy">
+                    <div class="value" id="accuracyValue">-</div>
+                    <div class="label">正确率</div>
+                </div>
+                <button class="secondary" id="btnResetStats" onclick="resetStats()" style="padding:6px 12px; align-self:center;">↺ 重置</button>
             </div>
         </div>
 
@@ -723,6 +774,12 @@
         <div class="history" id="history" style="margin-top: 15px;">
             <h3>📋 练习记录</h3>
             <div id="historyList"></div>
+        </div>
+
+        <!-- 进步曲线 -->
+        <div class="curve-panel" id="curvePanel">
+            <h3>📈 进步曲线（累计正确率）</h3>
+            <canvas id="curveCanvas"></canvas>
         </div>
     </div>
 
@@ -791,10 +848,19 @@ let totalCount = 0;
 let currentPlayingSource = null;  // 当前播放的音源
 let freeplayOctave = 4;  // 自由弹奏当前八度
 let activeKeySources = {};  // 自由弹奏时同时按下的键 -> {source, gain}
-let lastWrongIndex = null;  // 最近一次选错的按键索引，用于允许重复弹奏
+let lastWrongIndex = null;  // 最近一次选错的按键索引，用于允许重复点击错误键重听
+let questionScored = false; // 当前题目是否已计分（保证每题只计入一次统计）
 let currentVelocityLayer = 'mp'; // 当前使用的力度层
 let cachedOctaveRefNotes = null;  // 缓存的八度参考音列表，出题时生成，重听时复用
 let cachedIntervalRefNotes = null;  // 缓存的音程参考数据，出题时生成，重听时复用
+let streakCount = 0;        // 当前连对数
+let maxStreak = 0;          // 历史最高连对
+let lastAnswerIndex = null; // 上一题答案索引（用于避免连续出同一个音）
+let lastNewQuestionAt = 0;  // 上次出题时间戳（用于出题防抖，避免连点/长按疯狂刷题）
+let noteStats = {};         // 每个音的答题统计: name -> {correct, wrong}，用于薄弱音加权
+let resultHistory = [];     // 每题结果序列(1对/0错)，用于绘制进步曲线
+const LS_KEY = 'pianoEarTrainer_v1';
+const SETTING_IDS = ['lowNote','highNote','octaveSpeed','octaveRefMode','hintType','contextRange','intervalType','intervalDirection','velocityMode','velocityLevel','smartWeight'];
 
 // ========== 音频引擎 ==========
 
@@ -1015,8 +1081,8 @@ async function loadSamples() {
     const loadingBar = document.getElementById('loadingBar');
     const loadingText = document.querySelector('.loading-text');
 
-    // 只加载默认力度层 mf
-    const defaultLayer = 'mf';
+    // 只加载默认力度层：优先 mf，若配置中不含 mf 则退回到第一个可用力度层
+    const defaultLayer = VELOCITY_LAYERS.includes('mf') ? 'mf' : (VELOCITY_LAYERS[0] || 'mf');
     const total = AVAILABLE_SAMPLES.length;
 
     await loadSingleLayer(defaultLayer, (loaded, t) => {
@@ -1188,6 +1254,7 @@ function switchMode(mode) {
         document.querySelector('.status-bar'),
         document.getElementById('hintArea'),
         document.getElementById('history'),
+        document.getElementById('curvePanel'),
     ];
     practiceEls.forEach(el => {
         if (el) el.style.display = isFreeplay ? 'none' : '';
@@ -1219,6 +1286,7 @@ function resetQuestion() {
     currentAnswer = null;
     isAnswered = false;
     lastWrongIndex = null;
+    questionScored = false;
     cachedOctaveRefNotes = null;
     cachedIntervalRefNotes = null;
     clearKeyHighlights();
@@ -1234,23 +1302,43 @@ function clearKeyHighlights() {
     });
     // 清除所有音名标签
     document.querySelectorAll('.note-name-label').forEach(el => el.remove());
+    // 清除错键上的方向/距离标注
+    document.querySelectorAll('.key-feedback-badge').forEach(el => el.remove());
 }
 
 function newQuestion() {
+    // 出题防抖：限制触发频率，避免连点「出题」按钮或长按 A 键疯狂刷题
+    const now = Date.now();
+    if (now - lastNewQuestionAt < 500) return;
+    lastNewQuestionAt = now;
+
     if (lowNoteIndex >= highNoteIndex) {
         alert('请确保低音低于高音！');
         return;
     }
 
+    // 跳过计错：上一题已出但未作答（未计分）时，按「跳过/答错」计入统计，
+    // 使无限换题逃避计分变得有代价（连对清零、正确率下降），但仍允许跳过难题。
+    if (currentAnswer && !questionScored) {
+        questionScored = true;
+        wrongCount++;
+        totalCount++;
+        streakCount = 0;
+        recordAnswer(false);
+        addHistory(`⏭️ 跳过未答: ${currentAnswer.name}`, false);
+        updateScore();
+    }
+
     clearKeyHighlights();
     isAnswered = false;
     lastWrongIndex = null;
+    questionScored = false;
     cachedOctaveRefNotes = null;
     cachedIntervalRefNotes = null;
 
-    // 随机选一个音
-    const range = highNoteIndex - lowNoteIndex + 1;
-    const randomIdx = lowNoteIndex + Math.floor(Math.random() * range);
+    // 选一个音（可按薄弱音加权，见 pickWeightedNoteIndex）
+    const randomIdx = pickWeightedNoteIndex();
+    lastAnswerIndex = randomIdx;
     currentAnswer = { index: randomIdx, ...ALL_NOTES[randomIdx] };
 
     document.getElementById('btnReplay').disabled = false;
@@ -1661,9 +1749,16 @@ function onKeyClick(noteIndex) {
     if (noteIndex === correctIndex) {
         // 正确!
         isAnswered = true;
-        correctCount++;
-        totalCount++;
-        updateScore();
+        // 每题仅计分一次：仅当本题此前未被判定过（未答错、未显示答案）时才计为正确
+        if (!questionScored) {
+            questionScored = true;
+            correctCount++;
+            totalCount++;
+            streakCount++;
+            if (streakCount > maxStreak) maxStreak = streakCount;
+            recordAnswer(true);
+            updateScore();
+        }
 
         clickedEl.classList.add('correct-key');
         document.getElementById('hintArea').innerHTML =
@@ -1672,17 +1767,22 @@ function onKeyClick(noteIndex) {
 
         addHistory(`✅ 正确: ${currentAnswer.name}`, true);
     } else {
-        // 错误 - 首次选错才计分
-        if (!lastWrongIndex) {
+        // 错误 - 每题仅计分一次（首次判定即定性本题结果）
+        if (!questionScored) {
+            questionScored = true;
             wrongCount++;
             totalCount++;
+            streakCount = 0;
+            recordAnswer(false);
             updateScore();
         }
 
-        // 记录最近一次选错的按键索引
+        // 记录最近一次选错的按键索引（用于允许重复点击错误键重听）
         lastWrongIndex = noteIndex;
 
         clickedEl.classList.add('wrong-key');
+        // 在错键上直观标出方向/距离（遵循「提示方式」设置）
+        showWrongFeedback(noteIndex, correctIndex);
 
         const hintType = document.getElementById('hintType').value;
         let hintText = '';
@@ -1726,9 +1826,13 @@ function showAnswer() {
     document.getElementById('statusText').textContent = '已显示答案，点击「出题」继续';
 
     addHistory(`💡 揭示答案: ${currentAnswer.name}`, false);
-    if (totalCount === 0) {
+    // 未作答就直接看答案，本题计为一次错误（每题仅计一次）
+    if (!questionScored) {
+        questionScored = true;
         totalCount++;
         wrongCount++;
+        streakCount = 0;
+        recordAnswer(false);
         updateScore();
     }
 }
@@ -1737,6 +1841,14 @@ function updateScore() {
     document.getElementById('correctCount').textContent = correctCount;
     document.getElementById('wrongCount').textContent = wrongCount;
     document.getElementById('totalCount').textContent = totalCount;
+    const streakEl = document.getElementById('streakCount');
+    if (streakEl) {
+        streakEl.textContent = streakCount;
+        const item = streakEl.closest('.score-item');
+        if (item) item.title = '最高连对 ' + maxStreak;
+    }
+    const accEl = document.getElementById('accuracyValue');
+    if (accEl) accEl.textContent = totalCount > 0 ? Math.round(correctCount / totalCount * 100) + '%' : '-';
 }
 
 function addHistory(text, isCorrect) {
@@ -1821,11 +1933,12 @@ function setupVelocityControls() {
 
     // 填充力度级别下拉框
     levelSelect.innerHTML = '';
+    const preferredLayer = VELOCITY_LAYERS.includes('mf') ? 'mf' : (VELOCITY_LAYERS[0] || 'mf');
     for (const layer of VELOCITY_LAYERS) {
         const opt = document.createElement('option');
         opt.value = layer;
         opt.textContent = VELOCITY_LABELS[layer] || layer;
-        if (layer === 'mf') opt.selected = true;
+        if (layer === preferredLayer) opt.selected = true;
         levelSelect.appendChild(opt);
     }
 
@@ -1886,9 +1999,9 @@ function setupOctaveRefModeListener() {
         chromatic: '🎵 随机起始音，上行播放12个半音（覆盖目标音区间，起点每次不同）',
         diatonic: '🎵 随机起始白键，上行播放7个白键音（覆盖目标音区间，起点每次不同）',
         context: '🎵 播放目标音附近指定范围内的半音序列，目标音在窗口内位置随机',
-        tonic: '🎵 仅播放目标音所在八度的主音 C（最简洁，难度最高）',
-        standardA: '🎵 播放标准A (A4=440Hz) 作为音高锚点，专业调音参考',
-        interval: '🎵 从目标音所在八度的C出发，播放指定音程作为参考'
+        tonic: '🎵 播放目标音所在八度的主音 C 作为锚点（会提示目标所在八度范围）',
+        standardA: '🎵 播放标准A (A4=440Hz) 作为固定音高锚点，专业调音参考',
+        interval: '🎵 以目标音所在八度的 C 为根音，播放指定音程作为参考（会提示八度范围）'
     };
 
     function update() {
@@ -1977,6 +2090,12 @@ function freeplayNoteOff(code) {
 
 // ========== 键盘快捷键 ==========
 document.addEventListener('keydown', (e) => {
+    // 忽略长按产生的自动重复事件（避免连续触发出题、抢占音源等）
+    if (e.repeat) return;
+    // 焦点位于下拉框/输入框时交给原生控件处理，避免快捷键误触发
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA') return;
+
     // 自由弹奏模式的键盘输入
     if (currentMode === 'freeplay') {
         if (e.code === 'KeyZ') {
@@ -2027,6 +2146,188 @@ document.addEventListener('keyup', (e) => {
     }
 });
 
+// ========== 统计 / 持久化 / 进步曲线 ==========
+
+function pickWeightedNoteIndex() {
+    const smartEl = document.getElementById('smartWeight');
+    const useSmart = smartEl ? smartEl.checked : true;
+    const lo = lowNoteIndex, hi = highNoteIndex;
+    const span = hi - lo + 1;
+    if (span <= 1) return lo;
+    if (!useSmart) {
+        return lo + Math.floor(Math.random() * span);
+    }
+    const weights = [];
+    let sum = 0;
+    for (let i = lo; i <= hi; i++) {
+        const st = noteStats[ALL_NOTES[i].name] || { correct: 0, wrong: 0 };
+        const seen = st.correct + st.wrong;
+        let w;
+        if (seen === 0) {
+            w = 2.0;
+        } else {
+            w = 1.0 + (st.wrong / seen) * 4.0;
+        }
+        if (i === lastAnswerIndex) w *= 0.15;
+        weights.push(w);
+        sum += w;
+    }
+    let r = Math.random() * sum;
+    for (let k = 0; k < weights.length; k++) {
+        r -= weights[k];
+        if (r <= 0) return lo + k;
+    }
+    return hi;
+}
+
+function recordAnswer(isCorrect) {
+    if (currentAnswer) {
+        const name = currentAnswer.name;
+        if (!noteStats[name]) noteStats[name] = { correct: 0, wrong: 0 };
+        if (isCorrect) noteStats[name].correct++; else noteStats[name].wrong++;
+    }
+    resultHistory.push(isCorrect ? 1 : 0);
+    if (resultHistory.length > 500) resultHistory.shift();
+    saveState();
+    drawCurve();
+}
+
+function showWrongFeedback(wrongIndex, correctIndex) {
+    const hintType = document.getElementById('hintType').value;
+    if (hintType === 'none') return;
+    document.querySelectorAll('.key-feedback-badge').forEach(el => el.remove());
+    const keyEl = document.querySelector(`[data-index="${wrongIndex}"]`);
+    if (!keyEl) return;
+    const badge = document.createElement('span');
+    badge.className = 'key-feedback-badge';
+    const arrow = wrongIndex < correctIndex ? '↑' : '↓';
+    badge.textContent = (hintType === 'distance')
+        ? arrow + Math.abs(correctIndex - wrongIndex)
+        : arrow;
+    keyEl.appendChild(badge);
+}
+
+function drawCurve() {
+    const canvas = document.getElementById('curveCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const cssW = canvas.clientWidth || 600;
+    const cssH = 160;
+    if (canvas.width !== cssW) canvas.width = cssW;
+    if (canvas.height !== cssH) canvas.height = cssH;
+    const W = canvas.width, H = canvas.height;
+    const padL = 34, padR = 12, padT = 12, padB = 20;
+    ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillStyle = '#888';
+    ctx.font = '10px sans-serif';
+    ctx.lineWidth = 1;
+    [0, 50, 100].forEach(v => {
+        const y = padT + (H - padT - padB) * (1 - v / 100);
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(W - padR, y);
+        ctx.stroke();
+        ctx.fillText(v + '%', 6, y + 3);
+    });
+    if (resultHistory.length === 0) {
+        ctx.fillStyle = '#666';
+        ctx.fillText('暂无数据，开始答题后生成进步曲线', padL + 10, H / 2);
+        return;
+    }
+    const pts = [];
+    let cum = 0;
+    for (let i = 0; i < resultHistory.length; i++) {
+        cum += resultHistory[i];
+        pts.push(cum / (i + 1));
+    }
+    const n = pts.length;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+    const xAt = i => padL + (n === 1 ? plotW / 2 : plotW * i / (n - 1));
+    const yAt = a => padT + plotH * (1 - a);
+    ctx.strokeStyle = '#4dd0e1';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    pts.forEach((a, i) => {
+        const x = xAt(i), y = yAt(a);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    const lx = xAt(n - 1), ly = yAt(pts[n - 1]);
+    ctx.fillStyle = '#4dd0e1';
+    ctx.beginPath();
+    ctx.arc(lx, ly, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillText(Math.round(pts[n - 1] * 100) + '%', Math.min(lx + 5, W - padR - 26), ly - 5);
+}
+
+function resetStats() {
+    if (!confirm('确定要清空所有练习统计（正确率、连对、薄弱音记录、进步曲线和练习记录）吗？')) return;
+    correctCount = 0;
+    wrongCount = 0;
+    totalCount = 0;
+    streakCount = 0;
+    maxStreak = 0;
+    noteStats = {};
+    resultHistory = [];
+    lastAnswerIndex = null;
+    const list = document.getElementById('historyList');
+    if (list) list.innerHTML = '';
+    updateScore();
+    drawCurve();
+    saveState();
+}
+
+function getSettingsSnapshot() {
+    const s = {};
+    SETTING_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        s[id] = (el.type === 'checkbox') ? el.checked : el.value;
+    });
+    return s;
+}
+
+function loadState() {
+    try {
+        return JSON.parse(localStorage.getItem(LS_KEY)) || {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function saveState() {
+    const state = {
+        settings: getSettingsSnapshot(),
+        stats: { correctCount, wrongCount, totalCount, streakCount, maxStreak },
+        noteStats,
+        resultHistory
+    };
+    try {
+        localStorage.setItem(LS_KEY, JSON.stringify(state));
+    } catch (e) {}
+}
+
+function applySavedSettings(s) {
+    if (!s) return;
+    SETTING_IDS.forEach(id => {
+        if (s[id] === undefined) return;
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.type === 'checkbox') el.checked = s[id];
+        else el.value = s[id];
+        el.dispatchEvent(new Event('change'));
+    });
+}
+
+function bindSettingsPersistence() {
+    SETTING_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', saveState);
+    });
+}
+
 // ========== 初始化 ==========
 
 async function init() {
@@ -2035,6 +2336,23 @@ async function init() {
     updateRangeHighlight();
     setupOctaveRefModeListener();
     setupVelocityControls();
+
+    // 恢复本地保存的设置与统计数据
+    const saved = loadState();
+    applySavedSettings(saved.settings);
+    if (saved.stats) {
+        correctCount = saved.stats.correctCount || 0;
+        wrongCount = saved.stats.wrongCount || 0;
+        totalCount = saved.stats.totalCount || 0;
+        streakCount = saved.stats.streakCount || 0;
+        maxStreak = saved.stats.maxStreak || 0;
+    }
+    if (saved.noteStats) noteStats = saved.noteStats;
+    if (Array.isArray(saved.resultHistory)) resultHistory = saved.resultHistory;
+    bindSettingsPersistence();
+    updateScore();
+    drawCurve();
+    window.addEventListener('resize', drawCurve);
 
     // 等待用户交互来初始化 AudioContext (浏览器策略)
     document.addEventListener('click', async function initAudio() {
