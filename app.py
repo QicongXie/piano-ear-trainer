@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-视唱练耳训练工具 - Flask 后端
+钢琴音感与音准训练器 - Flask 后端
 提供静态文件服务和音频采样接口
 """
 
@@ -36,7 +36,7 @@ def serve_sample(filename):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="视唱练耳训练工具")
+    parser = argparse.ArgumentParser(description="钢琴音感与音准训练器")
     parser.add_argument('--host', default='0.0.0.0', help='监听地址')
     parser.add_argument('--port', type=int, default=7860, help='监听端口')
     parser.add_argument('--debug', action='store_true', help='调试模式')
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     app_config['default_low_note'] = args.default_low_note
     app_config['default_high_note'] = args.default_high_note
 
-    print(f"🎹 视唱练耳训练工具启动中...")
+    print(f"🎹 钢琴音感与音准训练器启动中...")
     print(f"🌐 访问地址: http://{args.host}:{args.port}")
     print(f"🎵 音频格式: {args.audio_format}")
     print(f"🔊 力度层: {args.velocity_layers}")

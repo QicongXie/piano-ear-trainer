@@ -1,5 +1,5 @@
 #!/bin/bash
-# 视唱练耳训练工具 - 启动脚本
+# 钢琴音感与音准训练器 - 启动脚本
 
 # 项目根目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -72,7 +72,7 @@ fi
 LOG_FILE="${SCRIPT_DIR}/app.log"
 
 echo "============================================"
-echo "  🎹 视唱练耳训练工具"
+echo "  🎹 钢琴音感与音准训练器"
 echo "  📡 地址: http://${HOST}:${PORT}"
 echo "  🔧 调试: ${DEBUG}"
 echo "  🎵 格式: ${AUDIO_FORMAT}"

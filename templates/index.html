@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎹 视唱练耳训练工具</title>
+    <title>🎹 钢琴音感与音准训练器</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -209,6 +209,78 @@
             margin-bottom: 8px;
         }
         #curveCanvas { width: 100%; height: 160px; display: block; }
+
+        /* ===== 音准（微分音）训练模式 ===== */
+        #pitchPanel { margin-top: 6px; }
+        .pitch-block {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 16px 20px;
+            margin-bottom: 16px;
+        }
+        .pitch-submodes { display: flex; gap: 10px; margin-bottom: 14px; }
+        .pitch-submode-btn {
+            flex: 1; padding: 10px; text-align: center; cursor: pointer;
+            border-radius: 10px; border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04); color: #bbb; font-size: 0.95em;
+            transition: all .2s;
+        }
+        .pitch-submode-btn.active { background: #6c5ce7; color: #fff; border-color: #6c5ce7; }
+        .pitch-submode-btn:hover:not(.active) { background: rgba(255,255,255,0.08); }
+        .pitch-submode-desc { font-size: 0.8em; color: #777; margin-bottom: 12px; text-align: center; line-height: 1.5; }
+        .pitch-status {
+            display: flex; flex-wrap: wrap; gap: 18px; justify-content: center;
+            margin-bottom: 14px; font-size: 0.9em; color: #aaa;
+        }
+        .pitch-status b { color: #ffd166; font-size: 1.15em; }
+        .pitch-play-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+        .pitch-answers { display: flex; gap: 12px; justify-content: center; margin-bottom: 14px; }
+        .pitch-ans-btn {
+            flex: 1; max-width: 190px; padding: 18px 10px; font-size: 1.1em; font-weight: bold;
+            border: none; border-radius: 12px; cursor: pointer; color: #fff; transition: transform .1s, opacity .2s;
+        }
+        .pitch-ans-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .pitch-ans-btn:not(:disabled):active { transform: scale(0.96); }
+        .pitch-ans-up { background: #e94560; }
+        .pitch-ans-down { background: #3d84f7; }
+        .pitch-ans-yes { background: #2ecc71; }
+        .pitch-ans-no { background: #e94560; }
+        .pitch-feedback {
+            min-height: 46px; text-align: center; font-size: 1.02em; padding: 12px;
+            border-radius: 10px; background: rgba(255,255,255,0.04); margin-bottom: 14px;
+            display: flex; align-items: center; justify-content: center; color: #ccc;
+        }
+        .pitch-feedback.correct { color: #4caf50; }
+        .pitch-feedback.wrong { color: #e94560; }
+        .pitch-stats { display: flex; gap: 20px; justify-content: center; align-items: center; flex-wrap: wrap; }
+        .pitch-stat { text-align: center; }
+        .pitch-stat .v { font-size: 1.4em; font-weight: bold; color: #4dd0e1; }
+        .pitch-stat .l { font-size: 0.75em; color: #888; }
+        #pitchCurveCanvas { width: 100%; height: 150px; display: block; }
+        .pitch-tuning-label { text-align: center; color: #ccc; font-size: 0.95em; margin-bottom: 12px; }
+        .pitch-tune-slider {
+            width: 100%; height: 8px; border-radius: 4px; -webkit-appearance: none; appearance: none;
+            background: linear-gradient(90deg, #3d84f7, #6c5ce7, #e94560); outline: none; cursor: pointer;
+        }
+        .pitch-tune-slider:disabled { opacity: 0.4; cursor: not-allowed; }
+        .pitch-tune-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; width: 22px; height: 22px; border-radius: 50%;
+            background: #fff; border: 2px solid #6c5ce7; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+        }
+        .pitch-tune-slider::-moz-range-thumb {
+            width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 2px solid #6c5ce7; cursor: pointer;
+        }
+        .pitch-tuning-hint { text-align: center; color: #777; font-size: 0.75em; margin: 8px 0 16px; }
+        .pitch-tuning-actions { display: flex; gap: 12px; justify-content: center; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+        /* 导出/导入工具栏 */
+        .data-tools { display: flex; gap: 10px; justify-content: center; margin: 24px 0 4px; }
+        .data-tools button, .data-import-label {
+            padding: 6px 12px; font-size: 0.85em; border-radius: 8px; cursor: pointer;
+            background: rgba(255,255,255,0.08); color: #ccc; border: 1px solid rgba(255,255,255,0.15);
+            display: inline-flex; align-items: center;
+        }
+        .data-tools button:hover, .data-import-label:hover { background: rgba(255,255,255,0.15); }
 
         /* 提示信息 */
         .hint-area {
@@ -494,31 +566,6 @@
             font-family: monospace;
             color: #e0e0e0;
         }
-        .keyboard-map {
-            display: flex;
-            justify-content: center;
-            gap: 4px;
-            margin-top: 12px;
-            flex-wrap: wrap;
-        }
-        .keyboard-map .km-key {
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 6px;
-            font-size: 0.75em;
-            font-weight: bold;
-        }
-        .keyboard-map .km-white {
-            background: rgba(255,255,255,0.15);
-            color: #e0e0e0;
-        }
-        .keyboard-map .km-black {
-            background: rgba(100,100,255,0.25);
-            color: #aaccff;
-        }
         .freeplay-controls {
             display: flex;
             align-items: center;
@@ -538,6 +585,45 @@
             min-width: 40px;
             text-align: center;
         }
+
+        /* ===== 移动端适配 ===== */
+        .piano-wrapper { -webkit-overflow-scrolling: touch; }
+        @media (max-width: 600px) {
+            .container { padding: 12px; }
+            h1 { font-size: 1.5em; }
+            .subtitle { font-size: 0.82em; margin-bottom: 16px; }
+
+            /* 模式标签：占满一行、可换行、更紧凑 */
+            .mode-tabs { gap: 6px; flex-wrap: wrap; }
+            .mode-tab { flex: 1; min-width: 90px; padding: 10px 8px; font-size: 0.85em; text-align: center; }
+
+            .controls { padding: 14px; }
+            .controls-row { gap: 10px; }
+            .control-group label { font-size: 0.82em; }
+            select, button { padding: 8px 12px; font-size: 0.85em; }
+            button.primary { padding: 10px 16px; }
+
+            /* 状态栏：纵向堆叠，分数居中平铺 */
+            .status-bar { flex-direction: column; align-items: stretch; padding: 12px; }
+            .status-text { font-size: 0.98em; text-align: center; }
+            .score-display { gap: 12px; justify-content: space-around; flex-wrap: wrap; }
+            .score-item .value { font-size: 1.2em; }
+
+            .hint-area { font-size: 0.98em; padding: 12px; min-height: 46px; }
+
+            /* 钢琴：靠横向滚动查看（键宽固定不变，避免黑键错位） */
+            .piano-wrapper { padding: 12px 0; }
+
+            /* 音准模式：面板/按钮更紧凑 */
+            .pitch-block { padding: 12px 14px; }
+            .pitch-submode-btn { padding: 8px; font-size: 0.85em; }
+            .pitch-status { gap: 12px; font-size: 0.82em; }
+            .pitch-ans-btn { padding: 16px 6px; font-size: 1em; }
+            .pitch-tuning-actions { gap: 8px; }
+            .pitch-tuning-actions button { flex: 1; min-width: 0; font-size: 0.82em; padding: 8px 6px; }
+
+            .data-tools { flex-wrap: wrap; margin-top: 18px; }
+        }
     </style>
 </head>
 <body>
@@ -549,13 +635,16 @@
     </div>
 
     <div class="container">
-        <h1>🎹 视唱练耳训练工具</h1>
-        <p class="subtitle">练习音高识别，提升你的音乐听觉能力</p>
+        <h1>🎹 钢琴音感与音准训练器</h1>
+        <p class="subtitle">单音听辨 · 音准训练（缝里的音）· 自由弹奏，用真实钢琴采样打磨你的耳朵</p>
 
         <!-- 模式选择 -->
         <div class="mode-tabs">
             <div class="mode-tab active" data-mode="training" onclick="switchMode('training')">
                 🎵 音感训练
+            </div>
+            <div class="mode-tab" data-mode="pitch" onclick="switchMode('pitch')">
+                🎯 音准训练
             </div>
             <div class="mode-tab" data-mode="freeplay" onclick="switchMode('freeplay')">
                 🎹 自由弹奏
@@ -748,21 +837,73 @@
                     → C# D# &nbsp; F# G# A#<br>
                     <kbd>Z</kbd> 降八度 &nbsp; <kbd>X</kbd> 升八度
                 </div>
-                <div class="keyboard-map">
-                    <div class="km-key km-white">A<br><small>C</small></div>
-                    <div class="km-key km-black">W<br><small>C#</small></div>
-                    <div class="km-key km-white">S<br><small>D</small></div>
-                    <div class="km-key km-black">E<br><small>D#</small></div>
-                    <div class="km-key km-white">D<br><small>E</small></div>
-                    <div class="km-key km-white">F<br><small>F</small></div>
-                    <div class="km-key km-black">T<br><small>F#</small></div>
-                    <div class="km-key km-white">G<br><small>G</small></div>
-                    <div class="km-key km-black">Y<br><small>G#</small></div>
-                    <div class="km-key km-white">H<br><small>A</small></div>
-                    <div class="km-key km-black">U<br><small>A#</small></div>
-                    <div class="km-key km-white">J<br><small>B</small></div>
-                    <div class="km-key km-white">K<br><small>C+</small></div>
+            </div>
+        </div>
+
+        <!-- 音准（微分音）训练模式面板 -->
+        <div id="pitchPanel" style="display:none;">
+            <div class="pitch-block">
+                <div class="pitch-submodes">
+                    <div class="pitch-submode-btn active" data-submode="direction" onclick="setPitchSubMode('direction')">🎯 偏差方向</div>
+                    <div class="pitch-submode-btn" data-submode="tuning" onclick="setPitchSubMode('tuning')">🎼 调准练习</div>
                 </div>
+                <div class="pitch-submode-desc" id="pitchSubModeDesc"></div>
+
+                <div class="controls-row" style="justify-content:center; margin-bottom:14px;">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.85em; color:#aaa;">
+                        <input type="checkbox" id="smartPitchWeight" checked style="cursor:pointer;">
+                        智能出题·薄弱音区优先（按历史表现，给更难练的音更多机会）
+                    </label>
+                </div>
+
+                <div class="pitch-status">
+                    <span><span id="pitchStatLabel1">当前难度</span>：<b id="pitchStatVal1">50 音分</b></span>
+                    <span><span id="pitchStatLabel2">最小可辨</span>：<b id="pitchStatVal2">-</b></span>
+                </div>
+
+                <div class="pitch-play-row">
+                    <button class="primary" id="btnPitchNew" onclick="newPitchQuestion()">🎲 出题 / 下一题 (A)</button>
+                    <button class="secondary" id="btnPitchReplay" onclick="replayPitch()" disabled>🔁 重听 (S)</button>
+                </div>
+
+                <!-- 偏差方向答题按钮 -->
+                <div class="pitch-answers" id="pitchAnsDirection">
+                    <button class="pitch-ans-btn pitch-ans-up" onclick="answerPitchDirection('up')" disabled>⬆️ 偏高 (D)</button>
+                    <button class="pitch-ans-btn pitch-ans-down" onclick="answerPitchDirection('down')" disabled>⬇️ 偏低 (F)</button>
+                </div>
+                <!-- 调准练习：滑块 + 试听 + 确认 -->
+                <div id="pitchTuning" style="display:none;">
+                    <div class="pitch-tuning-label">拖动滑块，把目标音「调准」到与基准音一致（同时听时消除嗡嗡的拍频）：</div>
+                    <input type="range" id="pitchTuneSlider" class="pitch-tune-slider" min="0" max="100" step="0.25" value="50"
+                           oninput="updateTuneFromSlider(this.value)" onchange="playPitchAdjusted()" disabled>
+                    <div class="pitch-tuning-hint">← 偏低　　　　　　偏高 →（准点位置随机隐藏，请靠耳朵找；键盘 S 调低 / D 调高，滑块聚焦时方向键可更精细微调）</div>
+                    <div class="pitch-tuning-actions">
+                        <button class="secondary" id="btnPitchDown" onclick="nudgeTune(-1)" disabled>🔽 调低 (S)</button>
+                        <button class="secondary" id="btnPitchUp" onclick="nudgeTune(1)" disabled>🔼 调高 (D)</button>
+                    </div>
+                    <div class="pitch-tuning-actions">
+                        <button class="secondary" id="btnPitchRef" onclick="playPitchRef()" disabled>🎵 重听基准音 (Z)</button>
+                        <button class="secondary" id="btnPitchAdjusted" onclick="playPitchAdjusted()" disabled>🎚️ 试听调整音 (X)</button>
+                        <button class="secondary" id="btnPitchBoth" onclick="playPitchBoth()" disabled>🎯 两音同时听 (C)</button>
+                    </div>
+                    <div class="pitch-tuning-actions">
+                        <button class="pitch-ans-btn pitch-ans-yes" id="btnPitchConfirm" onclick="confirmTuning()" disabled style="max-width:220px;">✅ 确认调准 (F)</button>
+                    </div>
+                </div>
+
+                <div class="pitch-feedback" id="pitchFeedback">选择子模式后点击「出题」开始 🎧</div>
+
+                <div class="pitch-stats">
+                    <div class="pitch-stat"><div class="v" id="pitchStreak">0</div><div class="l">连对</div></div>
+                    <div class="pitch-stat"><div class="v" id="pitchAccuracy">-</div><div class="l">正确率</div></div>
+                    <div class="pitch-stat"><div class="v" id="pitchTotal">0</div><div class="l">总题数</div></div>
+                    <button class="secondary" onclick="resetPitchStats()" style="padding:6px 12px;">↺ 重置</button>
+                </div>
+            </div>
+
+            <div class="pitch-block">
+                <h3 id="pitchCurveTitle" style="font-size:0.9em;color:#888;margin-bottom:8px;">📉 听辨阈值曲线（数值越低越好，单位：音分）</h3>
+                <canvas id="pitchCurveCanvas"></canvas>
             </div>
         </div>
 
@@ -780,6 +921,14 @@
         <div class="curve-panel" id="curvePanel">
             <h3>📈 进步曲线（累计正确率）</h3>
             <canvas id="curveCanvas"></canvas>
+        </div>
+
+        <!-- 练习记录 导出/导入（全模式通用）-->
+        <div class="data-tools">
+            <button class="secondary" onclick="exportProgress()">💾 导出记录</button>
+            <label class="data-import-label">📂 导入记录
+                <input type="file" accept="application/json" onchange="importProgress(this)" style="display:none;">
+            </label>
         </div>
     </div>
 
@@ -837,7 +986,7 @@ const loadedLayers = new Set();
 const loadingLayerPromises = {};
 
 // 游戏状态
-let currentMode = 'training';   // 'training' | 'freeplay'
+let currentMode = 'training';   // 'training' | 'freeplay' | 'pitch'
 let currentAnswer = null;   // 当前正确答案的音符对象
 let isAnswered = false;     // 当前题目是否已作答
 let lowNoteIndex = 0;       // 低音范围索引
@@ -859,8 +1008,30 @@ let lastAnswerIndex = null; // 上一题答案索引（用于避免连续出同�
 let lastNewQuestionAt = 0;  // 上次出题时间戳（用于出题防抖，避免连点/长按疯狂刷题）
 let noteStats = {};         // 每个音的答题统计: name -> {correct, wrong}，用于薄弱音加权
 let resultHistory = [];     // 每题结果序列(1对/0错)，用于绘制进步曲线
+
+// ===== 音准（微分音）训练模式状态 =====
+const PITCH_CENTS_LADDER = [50, 40, 30, 25, 20, 15, 12, 10, 8, 6, 5, 4, 3, 2]; // 难度阶梯（音分），越靠后越难；末段已超出常人听辨极限
+let pitchSubMode = 'direction';   // 'direction'(偏差方向) | 'tuning'(调准练习)
+let pitchLadderIdx = 0;           // 当前难度档位索引（自适应阶梯）
+let pitchConsecCorrect = 0;       // 连续答对计数（2-down-1-up 阶梯用）
+let pitchBaseMidi = null;         // 当前基准音 MIDI
+let pitchTargetCents = 0;         // 目标偏移（含符号；拍频模式 0 表示对齐）
+let pitchQuestionActive = false;  // 是否有活动题
+let pitchScored = false;          // 当前题是否已计分
+let pitchCorrect = 0, pitchWrong = 0, pitchTotal = 0, pitchStreak = 0;
+let pitchMinJnd = null;           // 历史最小可辨（音分，偏差方向模式）
+let pitchJndHistory = [];         // 每题被测难度序列，用于阈值曲线（偏差方向模式）
+let lastPitchQuestionAt = 0;      // 出题防抖时间戳
+let pitchReversed = false;        // 偏差方向：是否已出现首次答错（用于粗搜→细搜切换）
+let pitchBaseName = '';           // 当前基准音名（用于薄弱音区统计）
+let pitchNoteStats = {};          // 每个音的音准表现: name -> {dirN,dirWrong,tuneN,tuneResid}
+// 调准练习专属
+let pitchBestResidual = null;     // 历史最小调准残差（音分）
+let pitchResidualHistory = [];    // 每题调准残差序列，用于残差曲线
+let pitchTrueRaw = 50;            // 调准题隐藏的"准点"滑块位置
+let pitchTuneCents = 0;           // 当前滑块对应的目标音分偏差
 const LS_KEY = 'pianoEarTrainer_v1';
-const SETTING_IDS = ['lowNote','highNote','octaveSpeed','octaveRefMode','hintType','contextRange','intervalType','intervalDirection','velocityMode','velocityLevel','smartWeight'];
+const SETTING_IDS = ['lowNote','highNote','octaveSpeed','octaveRefMode','hintType','contextRange','intervalType','intervalDirection','velocityMode','velocityLevel','smartWeight','smartPitchWeight'];
 
 // ========== 音频引擎 ==========
 
@@ -921,7 +1092,7 @@ function getVelocityLayer() {
  * polyphonic: 是否多声部模式（不停止前一个音）
  * velocityOverride: 强制使用指定力度层（不为空时忽略力度模式设置）
  */
-function playNote(midi, duration = 3.0, polyphonic = false, velocityOverride = null) {
+function playNote(midi, duration = 3.0, polyphonic = false, velocityOverride = null, centsOffset = 0) {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
@@ -969,8 +1140,8 @@ function playNote(midi, duration = 3.0, polyphonic = false, velocityOverride = n
     const source = audioCtx.createBufferSource();
     source.buffer = finalBuffer;
 
-    // 变调: 每个半音的频率比是 2^(1/12)
-    source.playbackRate.value = Math.pow(2, semitoneOffset / 12);
+    // 变调: 每个半音的频率比是 2^(1/12)；centsOffset 为微分音偏移（音分/1200 八度）
+    source.playbackRate.value = Math.pow(2, semitoneOffset / 12 + centsOffset / 1200);
 
     // 音量控制 - 根据力度层微调基础音量
     const velocityGains = { 'pp': 0.35, 'p': 0.50, 'mp': 0.65, 'mf': 0.80, 'f': 0.92, 'ff': 1.0 };
@@ -1216,6 +1387,7 @@ function populateSelects() {
         highNoteIndex = parseInt(highSelect.value);
         updateRangeHighlight();
     });
+
 }
 
 // ========== 范围高亮 ==========
@@ -1242,13 +1414,17 @@ function switchMode(mode) {
     // 音感训练模式下，根据参考模式决定是否显示播放参考按钮
     updateRefButtonVisibility();
 
-    // 自由弹奏模式的显示/隐藏
     const isFreeplay = mode === 'freeplay';
-    document.getElementById('freeplayPanel').style.display = isFreeplay ? 'block' : 'none';
-    document.getElementById('keyboardHint').style.display = isFreeplay ? 'none' : 'block';
+    const isPitch = mode === 'pitch';
+    const isTraining = mode === 'training';
 
-    // 练习相关控件的显示/隐藏
-    const practiceEls = [
+    // 各模式专属面板的显示/隐藏
+    document.getElementById('freeplayPanel').style.display = isFreeplay ? 'block' : 'none';
+    document.getElementById('pitchPanel').style.display = isPitch ? 'block' : 'none';
+    document.getElementById('keyboardHint').style.display = isTraining ? 'block' : 'none';
+
+    // 音感训练相关控件：仅在音感训练模式显示
+    const trainingEls = [
         document.querySelector('.controls'),
         document.querySelector('.accordion'),
         document.querySelector('.status-bar'),
@@ -1256,20 +1432,31 @@ function switchMode(mode) {
         document.getElementById('history'),
         document.getElementById('curvePanel'),
     ];
-    practiceEls.forEach(el => {
-        if (el) el.style.display = isFreeplay ? 'none' : '';
+    trainingEls.forEach(el => {
+        if (el) el.style.display = isTraining ? '' : 'none';
     });
 
-    // 自由弹奏模式下清除范围高亮
-    if (isFreeplay) {
+    // 钢琴键盘：音准模式隐藏（答题不在琴键上）
+    const pianoWrap = document.querySelector('.piano-wrapper');
+    if (pianoWrap) pianoWrap.style.display = isPitch ? 'none' : '';
+
+    // 非训练模式下清除范围高亮
+    if (isTraining) {
+        updateRangeHighlight();
+    } else {
         clearKeyHighlights();
         document.querySelectorAll('.in-range').forEach(el => el.classList.remove('in-range'));
-    } else {
-        updateRangeHighlight();
     }
 
-    // 如果有当前答案，需要重置
+    // 重置音感训练当前题
     resetQuestion();
+
+    // 进入音准模式：刷新其 UI 与曲线
+    if (isPitch) {
+        setPitchSubMode(pitchSubMode);
+        updatePitchStats();
+        drawPitchCurve();
+    }
 }
 
 /**
@@ -2089,11 +2276,36 @@ function freeplayNoteOff(code) {
 }
 
 // ========== 键盘快捷键 ==========
+
+// 音准模式快捷键分发（与音感训练统一：A=出题；各动作函数内部自带可用性守卫）
+function handlePitchKey(e) {
+    if (e.code === 'KeyA') { e.preventDefault(); newPitchQuestion(); return; }
+    if (pitchSubMode === 'direction') {
+        if (e.code === 'KeyS') { e.preventDefault(); replayPitch();                return; } // 重听
+        if (e.code === 'KeyD') { e.preventDefault(); answerPitchDirection('up');   return; } // 偏高
+        if (e.code === 'KeyF') { e.preventDefault(); answerPitchDirection('down'); return; } // 偏低
+    } else { // tuning
+        if (e.code === 'KeyS') { e.preventDefault(); nudgeTune(-1);       return; } // 调低
+        if (e.code === 'KeyD') { e.preventDefault(); nudgeTune(1);        return; } // 调高
+        if (e.code === 'KeyF') { e.preventDefault(); confirmTuning();     return; } // 确认
+        if (e.code === 'KeyZ') { e.preventDefault(); playPitchRef();      return; } // 重听基准音
+        if (e.code === 'KeyX') { e.preventDefault(); playPitchAdjusted(); return; } // 试听调整音
+        if (e.code === 'KeyC') { e.preventDefault(); playPitchBoth();     return; } // 同时听
+    }
+}
+
 document.addEventListener('keydown', (e) => {
     // 忽略长按产生的自动重复事件（避免连续触发出题、抢占音源等）
     if (e.repeat) return;
-    // 焦点位于下拉框/输入框时交给原生控件处理，避免快捷键误触发
     const tag = (e.target && e.target.tagName) || '';
+
+    // 音准模式独占键盘快捷键（沿用 A=出题 的统一按键方案；滑块聚焦时方向键仍可原生微调）
+    if (currentMode === 'pitch') {
+        handlePitchKey(e);
+        return;
+    }
+
+    // 焦点位于下拉框/输入框时交给原生控件处理，避免快捷键误触发
     if (tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA') return;
 
     // 自由弹奏模式的键盘输入
@@ -2326,7 +2538,15 @@ function saveState() {
         settings: getSettingsSnapshot(),
         stats: { correctCount, wrongCount, totalCount, streakCount, maxStreak },
         noteStats,
-        resultHistory
+        resultHistory,
+        pitch: {
+            correct: pitchCorrect, wrong: pitchWrong, total: pitchTotal,
+            streak: pitchStreak, minJnd: pitchMinJnd,
+            ladderIdx: pitchLadderIdx, jndHistory: pitchJndHistory,
+            subMode: pitchSubMode,
+            bestResidual: pitchBestResidual, residualHistory: pitchResidualHistory,
+            reversed: pitchReversed, noteStats: pitchNoteStats
+        }
     };
     try {
         localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -2352,6 +2572,431 @@ function bindSettingsPersistence() {
     });
 }
 
+// ===================== 音准（微分音）训练模式 =====================
+
+const PITCH_SUBMODE_DESC = {
+    direction: '先播放基准音，再播放目标音，判断目标音相对基准是「偏高」还是「偏低」。难度会随你的表现自动逼近你的听辨极限。',
+    tuning: '同时播放基准音和一个走音的目标音，拖动滑块把目标音「调准」到与基准合一（消除嗡嗡的拍频）。考验你能把音调到多准——残差越小越好，直接对应拉弦/调音的真实功夫。'
+};
+
+// 调准练习参数
+const TUNE_PASS = 5;     // 达标线：残差 ≤ 5 音分算达标（约受训耳的听辨极限）
+const TUNE_SCALE = 1.0;  // 滑块每单位对应的音分（step=0.25 → 最细可调 0.25 音分）
+
+function midiToFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+
+// 切换子模式（偏差方向 / 调准练习）
+function setPitchSubMode(mode) {
+    pitchSubMode = mode;
+    document.querySelectorAll('.pitch-submode-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.submode === mode);
+    });
+    const desc = document.getElementById('pitchSubModeDesc');
+    if (desc) desc.textContent = PITCH_SUBMODE_DESC[mode] || '';
+    const dirEl = document.getElementById('pitchAnsDirection');
+    const tuneEl = document.getElementById('pitchTuning');
+    if (dirEl) dirEl.style.display = (mode === 'direction') ? 'flex' : 'none';
+    if (tuneEl) tuneEl.style.display = (mode === 'tuning') ? 'block' : 'none';
+    // 共享的「重听」按钮仅偏差方向模式用；调准模式有自己的三个试听按钮
+    const sharedReplay = document.getElementById('btnPitchReplay');
+    if (sharedReplay) sharedReplay.style.display = (mode === 'direction') ? 'inline-block' : 'none';
+    resetPitchRound();
+    updatePitchStats();
+    drawPitchCurve();
+    saveState();
+}
+
+// 启用/禁用答题控件（含调准滑块）
+function setPitchAnswerEnabled(enabled) {
+    document.querySelectorAll('#pitchAnsDirection .pitch-ans-btn').forEach(b => b.disabled = !enabled);
+    const slider = document.getElementById('pitchTuneSlider');
+    if (slider) slider.disabled = !enabled;
+    ['btnPitchDown', 'btnPitchUp', 'btnPitchRef', 'btnPitchAdjusted', 'btnPitchBoth', 'btnPitchConfirm'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !enabled;
+    });
+}
+
+// 清空当前题状态（不影响累计统计）
+function resetPitchRound() {
+    pitchQuestionActive = false;
+    pitchScored = false;
+    setPitchAnswerEnabled(false);
+    const replay = document.getElementById('btnPitchReplay');
+    if (replay) replay.disabled = true;
+    const fb = document.getElementById('pitchFeedback');
+    if (fb) { fb.className = 'pitch-feedback'; fb.textContent = '点击「出题」开始 🎧'; }
+}
+
+// 出题（含出题防抖 + 跳过未答计错）
+function newPitchQuestion() {
+    const now = Date.now();
+    if (now - lastPitchQuestionAt < 400) return;
+    lastPitchQuestionAt = now;
+
+    // 跳过计错：上一题已出但未作答时，按答错计入，避免无限换题逃避
+    if (pitchQuestionActive && !pitchScored) {
+        pitchTotal++; pitchWrong++; pitchStreak = 0;
+        if (pitchSubMode === 'direction') {
+            pitchJndHistory.push(PITCH_CENTS_LADDER[pitchLadderIdx]);
+            pitchLadderIdx = Math.max(0, pitchLadderIdx - 1);
+            pitchConsecCorrect = 0;
+            recordPitchNote(pitchBaseName, false, null);
+        } else {
+            pitchResidualHistory.push(50);
+            recordPitchNote(pitchBaseName, false, 50);
+        }
+    }
+
+    // 选基准音：沿用音感训练的音域，按薄弱音区加权
+    const idx = pickWeightedPitchNote();
+    pitchBaseMidi = ALL_NOTES[idx].midi;
+    pitchBaseName = ALL_NOTES[idx].name;
+
+    if (pitchSubMode === 'direction') {
+        const stepCents = PITCH_CENTS_LADDER[pitchLadderIdx];
+        const dir = Math.random() < 0.5 ? -1 : 1;
+        pitchTargetCents = dir * stepCents;
+    } else {
+        // 调准练习：随机隐藏"准点"位置，起点故意走音，避免靠滑块视觉居中作弊
+        pitchTrueRaw = 20 + Math.random() * 60;   // 准点在 [20,80]
+        const offsetUnits = (Math.random() < 0.5 ? -1 : 1) * (15 + Math.random() * 25); // 起始偏 15~40
+        let startRaw = Math.max(0, Math.min(100, pitchTrueRaw + offsetUnits));
+        const slider = document.getElementById('pitchTuneSlider');
+        if (slider) slider.value = startRaw;
+        pitchTuneCents = (startRaw - pitchTrueRaw) * TUNE_SCALE;
+    }
+
+    pitchQuestionActive = true;
+    pitchScored = false;
+    setPitchAnswerEnabled(true);
+    document.getElementById('btnPitchReplay').disabled = false;
+
+    const fb = document.getElementById('pitchFeedback');
+    fb.className = 'pitch-feedback';
+    fb.textContent = pitchSubMode === 'direction'
+        ? '🎧 请判断：目标音比基准音偏高还是偏低？'
+        : '🎧 拖动滑块让两个音「合一」（消除嗡嗡的拍频），调准后点「确认调准」。';
+
+    playPitchStimulus();
+    updatePitchStats();
+    saveState();
+}
+
+// 播放当前题的声音刺激（出题/重听时用）
+function playPitchStimulus() {
+    if (pitchBaseMidi == null) return;
+    if (pitchSubMode === 'direction') {
+        playNote(pitchBaseMidi, 1.3, false, null, 0);
+        setTimeout(() => playNote(pitchBaseMidi, 1.6, false, null, pitchTargetCents), 900);
+    } else {
+        // 调准默认：先放基准音，再放当前调整音（先后对比）
+        playNote(pitchBaseMidi, 1.3, false, null, 0);
+        setTimeout(() => playNote(pitchBaseMidi, 1.6, false, null, pitchTuneCents), 900);
+    }
+}
+
+function replayPitch() {
+    if (!pitchQuestionActive) return;
+    playPitchStimulus();
+}
+
+// 调准：单独重听基准音
+function playPitchRef() {
+    if (!pitchQuestionActive || pitchBaseMidi == null) return;
+    playNote(pitchBaseMidi, 1.8, false, null, 0);
+}
+// 调准：单独试听当前调整音
+function playPitchAdjusted() {
+    if (!pitchQuestionActive || pitchBaseMidi == null) return;
+    playNote(pitchBaseMidi, 1.8, false, null, pitchTuneCents);
+}
+// 调准：两音同时听（判断是否和谐 / 有无拍频）
+function playPitchBoth() {
+    if (!pitchQuestionActive || pitchBaseMidi == null) return;
+    playNote(pitchBaseMidi, 2.4, true, null, 0);
+    playNote(pitchBaseMidi, 2.4, true, null, pitchTuneCents);
+}
+
+// 偏差方向作答
+function answerPitchDirection(dir) {
+    if (!pitchQuestionActive || pitchScored || pitchSubMode !== 'direction') return;
+    const correct = (dir === 'up' && pitchTargetCents > 0) || (dir === 'down' && pitchTargetCents < 0);
+    finishPitchAnswer(correct,
+        `目标音实际偏${pitchTargetCents > 0 ? '高' : '低'} ${Math.abs(pitchTargetCents)} 音分`);
+}
+
+// 调准练习：滑块拖动实时更新目标音分（不自动发声，松手后由 onchange 试听单音）
+function updateTuneFromSlider(raw) {
+    pitchTuneCents = (parseFloat(raw) - pitchTrueRaw) * TUNE_SCALE;
+}
+
+// 调准练习：按钮微调（deltaCents 为正=调高，负=调低），并试听单音
+function nudgeTune(deltaCents) {
+    if (!pitchQuestionActive || pitchSubMode !== 'tuning') return;
+    const slider = document.getElementById('pitchTuneSlider');
+    if (!slider) return;
+    let raw = parseFloat(slider.value) + deltaCents / TUNE_SCALE;
+    raw = Math.max(0, Math.min(100, raw));
+    slider.value = raw;
+    updateTuneFromSlider(raw);
+    playPitchAdjusted();
+}
+
+// 音准模式：按薄弱音区加权选基准音（错误率/平均残差越高，权重越大）
+function pickWeightedPitchNote() {
+    const smartEl = document.getElementById('smartPitchWeight');
+    const useSmart = smartEl ? smartEl.checked : true;
+    const lo = Math.min(lowNoteIndex, highNoteIndex);
+    const hi = Math.max(lowNoteIndex, highNoteIndex);
+    const span = hi - lo + 1;
+    if (span <= 1) return lo;
+    if (!useSmart) return lo + Math.floor(Math.random() * span);
+
+    const weights = [];
+    let sum = 0;
+    for (let i = lo; i <= hi; i++) {
+        const st = pitchNoteStats[ALL_NOTES[i].name];
+        const seen = st ? (pitchSubMode === 'direction' ? st.dirN : st.tuneN) : 0;
+        let w;
+        if (!seen) {
+            w = 2.0;                                     // 没练过的音优先出现，保证覆盖
+        } else if (pitchSubMode === 'direction') {
+            w = 1.0 + (st.dirWrong / st.dirN) * 4.0;     // 错误率越高，权重越大（1~5）
+        } else {
+            const avgResid = st.tuneResid / st.tuneN;
+            w = 1.0 + Math.min(1, avgResid / 25) * 4.0;  // 平均残差越大越薄弱（25音分封顶，权重1~5）
+        }
+        weights.push(w);
+        sum += w;
+    }
+    let r = Math.random() * sum;
+    for (let k = 0; k < weights.length; k++) {
+        r -= weights[k];
+        if (r <= 0) return lo + k;
+    }
+    return hi;
+}
+
+// 记录某个基准音的音准表现（用于薄弱音区加权）
+function recordPitchNote(name, correct, residual) {
+    if (!name) return;
+    if (!pitchNoteStats[name]) pitchNoteStats[name] = { dirN: 0, dirWrong: 0, tuneN: 0, tuneResid: 0 };
+    const st = pitchNoteStats[name];
+    if (residual == null) {
+        st.dirN++;
+        if (!correct) st.dirWrong++;
+    } else {
+        st.tuneN++;
+        st.tuneResid += residual;
+    }
+}
+
+// 确认调准，按残差结算
+function confirmTuning() {
+    if (!pitchQuestionActive || pitchScored || pitchSubMode !== 'tuning') return;
+    pitchScored = true;
+    const residual = Math.abs(pitchTuneCents);
+    pitchTotal++;
+    pitchResidualHistory.push(residual);
+    if (pitchBestResidual == null || residual < pitchBestResidual) pitchBestResidual = residual;
+
+    const passed = residual <= TUNE_PASS;
+    if (passed) { pitchCorrect++; pitchStreak++; }
+    else { pitchWrong++; pitchStreak = 0; }
+    recordPitchNote(pitchBaseName, passed, residual);
+
+    const dirWord = pitchTuneCents > 0.5 ? '仍偏高' : (pitchTuneCents < -0.5 ? '仍偏低' : '几乎正中');
+    const fb = document.getElementById('pitchFeedback');
+    fb.className = 'pitch-feedback ' + (passed ? 'correct' : 'wrong');
+    fb.textContent = (passed ? '✅ 达标！' : '❌ 还差点，') +
+        `残差 ${residual.toFixed(1)} 音分（${dirWord}），达标线 ≤ ${TUNE_PASS} 音分。基准音：${pitchBaseName}。点「下一题」继续。`;
+
+    setPitchAnswerEnabled(false);
+    updatePitchStats();
+    drawPitchCurve();
+    saveState();
+}
+
+// 偏差方向结算：更新统计 + 自适应阶梯（2-down-1-up）
+function finishPitchAnswer(correct, detail) {
+    pitchScored = true;
+    const stepCents = PITCH_CENTS_LADDER[pitchLadderIdx];
+    pitchTotal++;
+    pitchJndHistory.push(stepCents);
+
+    const gateIdx = PITCH_CENTS_LADDER.indexOf(5);   // 5 音分「门槛」档位
+    const lastIdx = PITCH_CENTS_LADDER.length - 1;
+    if (correct) {
+        pitchCorrect++; pitchStreak++;
+        if (pitchMinJnd == null || stepCents < pitchMinJnd) pitchMinJnd = stepCents;
+
+        if (!pitchReversed && pitchLadderIdx < gateIdx) {
+            // 粗搜阶段且仍在 5 音分以上：每答对快速下探 2 档（但不越过 5 音分这道门）
+            pitchLadderIdx = Math.min(gateIdx, pitchLadderIdx + 2);
+            pitchConsecCorrect = 0;
+        } else {
+            // 细搜 / 已到门槛：按「下一档」要求的连对数解锁，越难越苛刻
+            pitchConsecCorrect++;
+            if (pitchLadderIdx < lastIdx) {
+                const nextStep = PITCH_CENTS_LADDER[pitchLadderIdx + 1];
+                // ≥5音分: 连对2次；4音分: 3次；3音分: 4次；2音分: 5次
+                const need = nextStep >= 5 ? 2 : (nextStep === 4 ? 3 : (nextStep === 3 ? 4 : 5));
+                if (pitchConsecCorrect >= need) {
+                    pitchLadderIdx++;
+                    pitchConsecCorrect = 0;
+                }
+            }
+        }
+    } else {
+        pitchWrong++; pitchStreak = 0;
+        pitchReversed = true;   // 首次答错 → 进入细搜
+        pitchConsecCorrect = 0;
+        pitchLadderIdx = Math.max(0, pitchLadderIdx - 1);   // 答错 → 降 1 档
+    }
+    recordPitchNote(pitchBaseName, correct, null);
+
+    const fb = document.getElementById('pitchFeedback');
+    fb.className = 'pitch-feedback ' + (correct ? 'correct' : 'wrong');
+    fb.textContent = (correct ? '✅ 正确！' : '❌ 不对，') + detail + `（基准音：${pitchBaseName}）。可点「重听」对比，或「下一题」继续。`;
+
+    setPitchAnswerEnabled(false);
+    updatePitchStats();
+    drawPitchCurve();
+    saveState();
+}
+
+function updatePitchStats() {
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('pitchStreak', pitchStreak);
+    set('pitchTotal', pitchTotal);
+    set('pitchAccuracy', pitchTotal > 0 ? Math.round(pitchCorrect / pitchTotal * 100) + '%' : '-');
+    if (pitchSubMode === 'direction') {
+        set('pitchStatLabel1', '当前难度');
+        set('pitchStatVal1', PITCH_CENTS_LADDER[pitchLadderIdx] + ' 音分');
+        set('pitchStatLabel2', '最小可辨');
+        set('pitchStatVal2', pitchMinJnd != null ? pitchMinJnd + ' 音分' : '-');
+    } else {
+        set('pitchStatLabel1', '达标线');
+        set('pitchStatVal1', '≤ ' + TUNE_PASS + ' 音分');
+        set('pitchStatLabel2', '最佳残差');
+        set('pitchStatVal2', pitchBestResidual != null ? pitchBestResidual.toFixed(1) + ' 音分' : '-');
+    }
+}
+
+function resetPitchStats() {
+    if (!confirm('确定要清空音准训练的统计（正确率、连对、成绩、难度进度和曲线）吗？')) return;
+    pitchCorrect = 0; pitchWrong = 0; pitchTotal = 0; pitchStreak = 0;
+    pitchMinJnd = null; pitchLadderIdx = 0; pitchConsecCorrect = 0; pitchReversed = false;
+    pitchJndHistory = [];
+    pitchBestResidual = null; pitchResidualHistory = [];
+    pitchNoteStats = {};
+    resetPitchRound();
+    updatePitchStats();
+    drawPitchCurve();
+    saveState();
+}
+
+// 成绩曲线（纵轴音分，越低越好）：偏差方向=听辨阈值；调准=残差
+function drawPitchCurve() {
+    const canvas = document.getElementById('pitchCurveCanvas');
+    if (!canvas) return;
+    const isDir = (pitchSubMode === 'direction');
+    const history = isDir ? pitchJndHistory : pitchResidualHistory;
+    const best = isDir ? pitchMinJnd : pitchBestResidual;
+
+    const titleEl = document.getElementById('pitchCurveTitle');
+    if (titleEl) titleEl.textContent = isDir
+        ? '📉 听辨阈值曲线（数值越低越好，单位：音分）'
+        : '📉 调准残差曲线（数值越低越好，单位：音分）';
+
+    const ctx = canvas.getContext('2d');
+    const cssW = canvas.clientWidth || 600;
+    const cssH = 150;
+    if (canvas.width !== cssW) canvas.width = cssW;
+    if (canvas.height !== cssH) canvas.height = cssH;
+    const W = canvas.width, H = canvas.height;
+    const padL = 40, padR = 12, padT = 12, padB = 20;
+    ctx.clearRect(0, 0, W, H);
+
+    const maxC = 50;
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillStyle = '#888';
+    ctx.font = '10px sans-serif';
+    ctx.lineWidth = 1;
+    [0, 25, 50].forEach(v => {
+        const y = padT + (H - padT - padB) * (v / maxC);
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+        ctx.fillText(v + '\u00A2', 6, y + 3);
+    });
+
+    if (history.length === 0) {
+        ctx.fillStyle = '#666';
+        ctx.fillText('暂无数据，开始答题后生成曲线', padL + 10, H / 2);
+        return;
+    }
+
+    const n = history.length;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const xAt = i => padL + (n === 1 ? plotW / 2 : plotW * i / (n - 1));
+    const yAt = c => padT + plotH * (Math.min(c, maxC) / maxC);
+
+    ctx.strokeStyle = '#a29bfe';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    history.forEach((c, i) => {
+        const x = xAt(i), y = yAt(c);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    const lx = xAt(n - 1), ly = yAt(history[n - 1]);
+    ctx.fillStyle = '#a29bfe';
+    ctx.beginPath(); ctx.arc(lx, ly, 3, 0, Math.PI * 2); ctx.fill();
+    if (best != null) {
+        ctx.fillStyle = '#4dd0e1';
+        const bestStr = Number.isInteger(best) ? best : best.toFixed(1);
+        ctx.fillText('最佳 ' + bestStr + '\u00A2', padL + 6, padT + 10);
+    }
+}
+
+// ===================== 练习记录 导出 / 导入 =====================
+
+// 导出当前全部练习记录（含设置、统计、薄弱音分布、音准数据）为 JSON 文件
+function exportProgress() {
+    saveState(); // 先把内存状态落盘，保证导出最新
+    const data = localStorage.getItem(LS_KEY) || '{}';
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ear-trainer-progress-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// 从 JSON 文件导入练习记录（覆盖本地），刷新页面应用
+function importProgress(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const obj = JSON.parse(e.target.result);
+            if (!obj || typeof obj !== 'object') throw new Error('bad');
+            localStorage.setItem(LS_KEY, JSON.stringify(obj));
+            alert('练习记录已导入，页面将刷新以应用。');
+            location.reload();
+        } catch (err) {
+            alert('导入失败：文件格式不正确，请选择本工具导出的 JSON 记录文件。');
+        }
+    };
+    reader.readAsText(file);
+    input.value = '';
+}
+
 // ========== 初始化 ==========
 
 async function init() {
@@ -2373,10 +3018,30 @@ async function init() {
     }
     if (saved.noteStats) noteStats = saved.noteStats;
     if (Array.isArray(saved.resultHistory)) resultHistory = saved.resultHistory;
+    // 恢复音准训练数据
+    if (saved.pitch) {
+        pitchCorrect = saved.pitch.correct || 0;
+        pitchWrong = saved.pitch.wrong || 0;
+        pitchTotal = saved.pitch.total || 0;
+        pitchStreak = saved.pitch.streak || 0;
+        pitchMinJnd = (saved.pitch.minJnd != null) ? saved.pitch.minJnd : null;
+        pitchLadderIdx = saved.pitch.ladderIdx || 0;
+        if (Array.isArray(saved.pitch.jndHistory)) pitchJndHistory = saved.pitch.jndHistory;
+        if (saved.pitch.subMode) pitchSubMode = saved.pitch.subMode;
+        pitchBestResidual = (saved.pitch.bestResidual != null) ? saved.pitch.bestResidual : null;
+        if (Array.isArray(saved.pitch.residualHistory)) pitchResidualHistory = saved.pitch.residualHistory;
+        pitchReversed = !!saved.pitch.reversed;
+        if (saved.pitch.noteStats) pitchNoteStats = saved.pitch.noteStats;
+    }
     bindSettingsPersistence();
     updateScore();
     drawCurve();
     window.addEventListener('resize', drawCurve);
+    // 初始化音准模式 UI
+    setPitchSubMode(pitchSubMode);
+    updatePitchStats();
+    drawPitchCurve();
+    window.addEventListener('resize', drawPitchCurve);
 
     // 等待用户交互来初始化 AudioContext (浏览器策略)
     document.addEventListener('click', async function initAudio() {

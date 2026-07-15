@@ -25,3 +25,7 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+
+# Playwright 截图临时文件
+.playwright/
+.playwright-cli/
