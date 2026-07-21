@@ -1,0 +1,18 @@
+#!/bin/sh
+# pre-commit：当 templates/index.html 被改动时，自动重新生成 docs/index.html 并纳入本次提交，
+# 杜绝“只改了模板、忘了同步静态部署版”的问题。
+#
+# 安装（每台机器 clone 后执行一次）：
+#   cp scripts/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+ROOT="$(git rev-parse --show-toplevel)"
+
+if git diff --cached --name-only | grep -q '^templates/index\.html$'; then
+    echo "[pre-commit] templates/index.html 已改动 → 重新生成 docs/index.html"
+    if ! command -v node >/dev/null 2>&1; then
+        echo "[pre-commit] 错误：未找到 node，无法生成 docs/index.html，提交中止"
+        exit 1
+    fi
+    node "$ROOT/build-docs.js" || { echo "[pre-commit] build-docs.js 执行失败，提交中止"; exit 1; }
+    git add "$ROOT/docs/index.html"
+fi
+exit 0

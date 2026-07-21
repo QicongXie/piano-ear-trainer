@@ -131,18 +131,56 @@ lsof -i :7860 -t | xargs kill -9
 tail -f app.log
 ```
 
+## 🛠️ 开发与静态部署
+
+**前端只维护 `templates/index.html`**（Flask 模板版）。GitHub Pages / EdgeOne 使用的 `docs/index.html` 是它的**静态产物**，由 `build-docs.js` 自动生成（把配置占位符替换为写死值、把采样改为相对路径），**请勿手动编辑 `docs/index.html`**。
+
+### 生成静态版
+
+```bash
+node build-docs.js   # 从 templates/index.html 生成 docs/index.html
+```
+
+### 自动同步（建议装一次 git hook）
+
+装上 pre-commit hook 后，只要提交涉及 `templates/index.html`，会自动重新生成 `docs/index.html` 并加入本次提交，无需手动执行：
+
+```bash
+cp scripts/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+```
+
+> 采样音频 `docs/samples/` 不由脚本管理，始终随仓库维护。
+
+### 部署到 GitHub Pages
+
+`docs/` 已是成品（`index.html` + `samples/`），在仓库 **Settings → Pages → Deploy from a branch → `main` / `docs`** 即可，**无需任何构建步骤**。
+
+### 部署到 EdgeOne Pages
+
+由于 `docs/index.html` 已入库为成品，可直接当静态站发布，无需构建环境：
+
+1. EdgeOne 控制台 → **Pages → 导入 Git 仓库**，授权并选择本仓库；
+2. 构建配置：**构建命令留空**、**输出目录（根目录）填 `docs`**、框架预设选 **无 / 静态**；
+3. 部署完成后用默认域名访问，或绑定自有域名（国内自定义域名需备案）。
+
+> 改动 `templates/index.html` 后务必先在本地生成并提交 `docs/index.html`（装了上面的 pre-commit hook 即自动完成），EdgeOne 会在下次推送后自动重新部署。
+
 ## 📁 项目结构
 
 ```
 piano-ear-trainer/
 ├── app.py                  # Flask 后端主程序
 ├── prepare_samples.py      # 钢琴采样预处理脚本
+├── build-docs.js           # 从 templates 生成 docs 静态版的构建脚本
 ├── run.sh                  # 服务启动脚本（nohup 后台运行）
 ├── setup.sh                # 一键整备脚本（LFS 拉取 + 解压 + 预处理）
+├── scripts/
+│   └── git-hooks/
+│       └── pre-commit      # 提交时自动重建 docs/index.html 的 git hook
 ├── templates/
-│   └── index.html          # 前端页面（本地 Flask 版）
-├── docs/                   # GitHub Pages 静态版（含采样与截图）
-│   ├── index.html          # 静态前端（配置写死，采样相对路径）
+│   └── index.html          # 前端页面（本地 Flask 版，唯一需手改的前端源）
+├── docs/                   # GitHub Pages / EdgeOne 静态版（含采样与截图）
+│   ├── index.html          # [生成] 由 build-docs.js 从 templates 生成
 │   ├── samples/            # 供静态站使用的音频采样
 │   ├── screenshot-main.png # 音感训练截图
 │   └── screenshot-pitch.png# 音准训练截图

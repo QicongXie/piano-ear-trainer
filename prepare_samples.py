@@ -50,7 +50,7 @@ def convert_sample(input_path, output_path, duration=4.0, sample_rate=44100, fmt
         '-i', input_path,
         '-t', str(duration),
         '-ar', str(sample_rate),
-        '-af', f'afade=t=out:st={duration - 0.5}:d=0.5',
+        '-af', f'afade=t=out:st={max(0.0, duration - 0.5)}:d=0.5',
     ]
     if fmt == 'mp3':
         cmd += ['-b:a', '128k']
