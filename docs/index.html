@@ -1022,6 +1022,7 @@ let pitchCorrect = 0, pitchWrong = 0, pitchTotal = 0, pitchStreak = 0;
 let pitchMinJnd = null;           // 历史最小可辨（音分，偏差方向模式）
 let pitchJndHistory = [];         // 每题被测难度序列，用于阈值曲线（偏差方向模式）
 let lastPitchQuestionAt = 0;      // 出题防抖时间戳
+let pitchStimulusTimer = null;    // “先后播两个音”的延时器（用于清理，避免连点出题声音串味）
 let pitchReversed = false;        // 偏差方向：是否已出现首次答错（用于粗搜→细搜切换）
 let pitchBaseName = '';           // 当前基准音名（用于薄弱音区统计）
 let pitchNoteStats = {};          // 每个音的音准表现: name -> {dirN,dirWrong,tuneN,tuneResid}
@@ -1096,6 +1097,11 @@ function playNote(midi, duration = 3.0, polyphonic = false, velocityOverride = n
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
+    // iOS/Safari 关键修复：切后台/锁屏/切标签页后，AudioContext 会被系统自动挂起(suspended)，
+    // 若不恢复直接 start() 会没有声音。此处由用户手势间接触发，resume() 合法。
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
 
     // 非多声部模式时停止之前的播放
     if (!polyphonic && currentPlayingSource) {
@@ -1159,7 +1165,11 @@ function playNote(midi, duration = 3.0, polyphonic = false, velocityOverride = n
         currentPlayingSource = source;
     }
 
-    // 自动停止
+    // 播放结束（自然结束或被 stop）后断开节点，避免长时间大量播放导致节点堆积
+    source.onended = () => {
+        try { source.disconnect(); gainNode.disconnect(); } catch(e) {}
+    };
+    // 自动停止（兜底；playbackRate 变调下 setTimeout 与真实时长可能有偏差）
     setTimeout(() => {
         try { source.stop(); } catch(e) {}
     }, duration * 1000);
@@ -1236,9 +1246,11 @@ async function ensureLayerLoaded(layer) {
     if (loadedLayers.has(layer)) return;
     const statusEl = document.getElementById('statusText');
     const origText = statusEl.textContent;
-    statusEl.textContent = `⏳ 正在加载 ${VELOCITY_LABELS[layer] || layer} 力度采样...`;
+    const loadingMsg = `⏳ 正在加载 ${VELOCITY_LABELS[layer] || layer} 力度采样...`;
+    statusEl.textContent = loadingMsg;
     await loadSingleLayer(layer);
-    statusEl.textContent = origText;
+    // 仅当期间未被其它逻辑改动时才恢复，避免覆盖新状态
+    if (statusEl.textContent === loadingMsg) statusEl.textContent = origText;
 }
 
 /**
@@ -1266,6 +1278,10 @@ async function loadSamples() {
     document.getElementById('loadingOverlay').classList.add('hidden');
 
     const count = Object.keys(sampleBuffers[defaultLayer] || {}).length;
+    if (count === 0) {
+        const st = document.getElementById('statusText');
+        if (st) st.textContent = '⚠️ 钢琴采样加载失败，请检查网络后刷新页面';
+    }
     console.log(`首屏加载完成: ${defaultLayer} 层 ${count} 个采样 (格式: ${AUDIO_FORMAT})`);
     console.log(`其余力度层将在需要时按需加载`);
 }
@@ -2534,6 +2550,10 @@ function loadState() {
 }
 
 function saveState() {
+    // 限制历史数组长度，防止 localStorage 膨胀与序列化变慢（曲线只需看趋势）
+    if (resultHistory.length > 500) resultHistory = resultHistory.slice(-500);
+    if (pitchJndHistory.length > 500) pitchJndHistory = pitchJndHistory.slice(-500);
+    if (pitchResidualHistory.length > 500) pitchResidualHistory = pitchResidualHistory.slice(-500);
     const state = {
         settings: getSettingsSnapshot(),
         stats: { correctCount, wrongCount, totalCount, streakCount, maxStreak },
@@ -2686,13 +2706,15 @@ function newPitchQuestion() {
 // 播放当前题的声音刺激（出题/重听时用）
 function playPitchStimulus() {
     if (pitchBaseMidi == null) return;
+    // 清理上一次尚未触发的“第二个音”定时器，避免连点出题/切模式导致声音串味
+    if (pitchStimulusTimer) { clearTimeout(pitchStimulusTimer); pitchStimulusTimer = null; }
     if (pitchSubMode === 'direction') {
         playNote(pitchBaseMidi, 1.3, false, null, 0);
-        setTimeout(() => playNote(pitchBaseMidi, 1.6, false, null, pitchTargetCents), 900);
+        pitchStimulusTimer = setTimeout(() => playNote(pitchBaseMidi, 1.6, false, null, pitchTargetCents), 900);
     } else {
         // 调准默认：先放基准音，再放当前调整音（先后对比）
         playNote(pitchBaseMidi, 1.3, false, null, 0);
-        setTimeout(() => playNote(pitchBaseMidi, 1.6, false, null, pitchTuneCents), 900);
+        pitchStimulusTimer = setTimeout(() => playNote(pitchBaseMidi, 1.6, false, null, pitchTuneCents), 900);
     }
 }
 
@@ -3043,17 +3065,25 @@ async function init() {
     drawPitchCurve();
     window.addEventListener('resize', drawPitchCurve);
 
-    // 等待用户交互来初始化 AudioContext (浏览器策略)
-    document.addEventListener('click', async function initAudio() {
+    // 用户交互时初始化/恢复 AudioContext（浏览器自动播放策略）
+    // 持续监听多种手势（不再一次性移除）：iOS 下上下文会被系统反复挂起，需保证每次交互都能恢复
+    function unlockAudio() {
         if (!audioCtx) {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }
         if (audioCtx.state === 'suspended') {
-            await audioCtx.resume();
+            audioCtx.resume();
         }
-        // 只需要初始化一次
-        document.removeEventListener('click', initAudio);
-    }, { once: false });
+    }
+    ['touchend', 'click', 'keydown'].forEach(evt => {
+        document.addEventListener(evt, unlockAudio, { passive: true });
+    });
+    // 从后台/锁屏返回前台时，主动尝试恢复被系统挂起的上下文
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    });
 
     await loadSamples();
 }
