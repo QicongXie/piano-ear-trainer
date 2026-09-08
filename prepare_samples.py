@@ -109,7 +109,10 @@ def main():
             basename = os.path.basename(fpath)
             # 从文件名提取音名, 如 "A0v8.wav" -> "A0"
             note_name = basename.split('v')[0]
-            output_name = f"{note_name}{suffix}.{fmt}"
+            # 文件名安全化: '#' 在 URL 中需转义为 %23，部分静态托管(如 EdgeOne)不解析该转义，
+            # 故输出文件统一用 's' 代替 '#'（F#1 -> Fs1）
+            safe_note = note_name.replace('#', 's')
+            output_name = f"{safe_note}{suffix}.{fmt}"
             output_path = os.path.join(args.output_dir, output_name)
 
             print(f"  [{i+1}/{len(note_files)}] {basename} -> {output_name}")

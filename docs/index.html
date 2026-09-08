@@ -1202,25 +1202,27 @@ async function loadSingleLayer(layer, onProgress) {
         let loaded = 0;
 
         const promises = AVAILABLE_SAMPLES.map(name => (async () => {
-            try {
-                const url = `samples/${encodeURIComponent(name)}_${layer}.${AUDIO_FORMAT}`;
-                const response = await fetch(url);
-                if (!response.ok) {
-                    // 如果该力度层文件不存在，尝试无后缀版本（兼容旧版单力度）
-                    const fallbackUrl = `samples/${encodeURIComponent(name)}.${AUDIO_FORMAT}`;
-                    const fbResponse = await fetch(fallbackUrl);
-                    if (fbResponse.ok) {
-                        const arrayBuffer = await fbResponse.arrayBuffer();
-                        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                        sampleBuffers[layer][name] = audioBuffer;
-                    }
-                } else {
+            // 文件名安全化：'#' 在 URL 中必须转义为 %23，而部分静态托管（如 EdgeOne）不解析该转义会返回 404，
+            // 因此采样文件统一用 's' 代替 '#'（F#1 -> Fs1）。旧的 '#' 命名保留为兼容回退。
+            const safeName = name.replace('#', 's');
+            const candidates = [`samples/${safeName}_${layer}.${AUDIO_FORMAT}`];
+            if (safeName !== name) {
+                // 兼容仍使用 '#' 命名的旧部署
+                candidates.push(`samples/${encodeURIComponent(name)}_${layer}.${AUDIO_FORMAT}`);
+            }
+            // 兼容旧版单力度（无力度后缀）
+            candidates.push(`samples/${safeName}.${AUDIO_FORMAT}`);
+
+            for (const url of candidates) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) continue;
                     const arrayBuffer = await response.arrayBuffer();
-                    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                    sampleBuffers[layer][name] = audioBuffer;
+                    sampleBuffers[layer][name] = await audioCtx.decodeAudioData(arrayBuffer);
+                    break;
+                } catch (e) {
+                    // 该候选路径失败，尝试下一个
                 }
-            } catch (e) {
-                // 静默失败，会在播放时 fallback
             }
             loaded++;
             if (onProgress) onProgress(loaded, total);
