@@ -16,11 +16,15 @@ No installation needed — open and play (static build on GitHub Pages):
 
 ## 📸 Screenshots
 
-These screenshots show the original interface. See the feature guide below for the current exercise menu and landscape keyboard.
+### Practice and exercise menu
 
-| Ear Training | Intonation Training (Tuning) |
-|:---:|:---:|
-| <img src="docs/screenshot-main.png" width="420" alt="Ear Training"> | <img src="docs/screenshot-pitch.png" width="420" alt="Intonation Training (Tuning)"> |
+![Ear-training interface and mini-games menu](docs/screenshot-desktop-practice.jpg)
+
+### Free Play: Expanded keyboard
+
+![Expanded piano keyboard in a landscape viewport](docs/screenshot-mobile-landscape-freeplay.jpg)
+
+The expanded keyboard is shown in Chrome's simulated phone landscape viewport.
 
 ## ✨ Features
 

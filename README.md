@@ -15,11 +15,15 @@
 
 ## 📸 界面预览
 
-以下为原版界面截图；当前版的模式入口和横屏琴键以正文说明为准。
+### 练习与模式入口
 
-| 音感训练 | 音准训练（调准练习） |
-|:---:|:---:|
-| <img src="docs/screenshot-main.png" width="420" alt="音感训练"> | <img src="docs/screenshot-pitch.png" width="420" alt="音准训练（调准练习）"> |
+![听辨练习界面与练耳小游戏菜单](docs/screenshot-desktop-practice.jpg)
+
+### 自由弹奏 · 展开琴键
+
+![横屏下展开的钢琴键盘](docs/screenshot-mobile-landscape-freeplay.jpg)
+
+上图为 Chrome 模拟的手机横屏视口。
 
 ## ✨ 功能总览
 
