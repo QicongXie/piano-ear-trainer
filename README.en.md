@@ -63,6 +63,8 @@ Detunes the real piano samples by exact **cents** (1 semitone = 100 cents) to tr
 
 A virtual 88-key piano playable by mouse, touch, or computer keyboard. The computer keyboard covers 34 consecutive pitches (C4–A6 by default), so you can play chords across octaves without switching. Shift the entire range with `[` / `]` or the on-screen arrows. Mouse and touch can still play all 88 keys.
 
+On phones, Free Play expands automatically in landscape. You can also tap the expand button in portrait. In expanded view, swipe or use the octave scroll buttons to browse all 88 keys without transposing.
+
 ### 🧰 General
 
 - **Real piano timbre**: high-quality Salamander Grand Piano V3 samples, velocity-layered and lazy-loaded.

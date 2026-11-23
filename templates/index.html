@@ -603,6 +603,39 @@
             text-align: center;
         }
 
+        /* 手机演奏视图使用同一套琴键，不依赖系统全屏或屏幕方向锁定。 */
+        #freeplayExpand, .freeplay-stage-bar { display: none; }
+        @media (max-width: 950px) and (pointer: coarse) {
+            #freeplayExpand { display: inline-block; min-height: 44px; }
+        }
+        body.freeplay-expanded { overflow: hidden; }
+        .freeplay-expanded .container {
+            position: fixed; inset: 0; z-index: 10;
+            display: flex; flex-direction: column;
+            width: 100%; max-width: none; height: 100%; height: 100dvh;
+            margin: 0;
+            padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+                     env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+            background: #141c30;
+        }
+        .freeplay-expanded .container > :not(.piano-wrapper):not(#freeplayPanel):not(#sampleNotice) { display: none !important; }
+        .freeplay-expanded #sampleNotice { order: -2; margin: 0; }
+        .freeplay-expanded #freeplayPanel { order: -1; }
+        .freeplay-expanded #freeplayPanel > :not(.freeplay-stage-bar) { display: none; }
+        .freeplay-expanded .freeplay-stage-bar {
+            display: flex; align-items: center; justify-content: center;
+            gap: 6px; padding: 3px 6px;
+        }
+        .freeplay-stage-bar button { min-width: 44px; min-height: 44px; padding: 4px 7px; white-space: nowrap; }
+        #freeplayVisibleRange { min-width: 7ch; color: #ffd083; text-align: center; white-space: nowrap; }
+        .freeplay-expanded .piano-wrapper {
+            flex: 1; min-height: 0; overflow-y: hidden; margin: 0; padding: 0;
+            overscroll-behavior-x: contain; touch-action: pan-x pinch-zoom;
+        }
+        .freeplay-expanded .piano { height: 100%; }
+        .freeplay-expanded .white-key { height: 100%; flex-shrink: 0; }
+        .freeplay-expanded .black-key { height: 65%; }
+
         /* ===== 移动端适配 ===== */
         .piano-wrapper { -webkit-overflow-scrolling: touch; }
         @media (max-width: 600px) {
@@ -922,6 +955,13 @@
                 <span class="octave-display" id="freeplayOctave" aria-live="polite">C4–A6</span>
                 <button type="button" class="secondary" id="freeplayHigher" aria-label="键盘音域升一个八度" onclick="shiftFreeplayOctave(1)" style="padding:6px 12px;">▶</button>
                 <span>按 <kbd>[</kbd> / <kbd>]</kbd> 下移 / 上移</span>
+                <button type="button" class="secondary" id="freeplayExpand" aria-expanded="false">放大琴键</button>
+            </div>
+            <div class="freeplay-stage-bar" aria-label="放大琴键控制">
+                <button type="button" class="secondary" id="freeplayPanLower" aria-label="向低音移动一个八度">◀</button>
+                <span id="freeplayVisibleRange" aria-label="可见音域"></span>
+                <button type="button" class="secondary" id="freeplayPanHigher" aria-label="向高音移动一个八度">▶</button>
+                <button type="button" class="secondary" id="freeplayExit" aria-label="退出放大琴键">退出</button>
             </div>
             <div class="freeplay-hint">
                 <div class="title">🎹 自由弹奏模式</div>
@@ -1661,6 +1701,7 @@ function switchMode(mode, requestedPitchMode = pitchSubMode) {
     const pianoWrap = document.querySelector('.piano-wrapper');
     if (pianoWrap) pianoWrap.style.display = isPitch || isMelody || isInterval ? 'none' : '';
     updateFreeplayKeyLabels(isFreeplay);
+    syncFreeplayStage();
 
     // 非训练模式下清除范围高亮
     if (isTraining) {
@@ -2411,6 +2452,100 @@ function shiftFreeplayOctave(delta) {
     updateFreeplayKeyLabels(currentMode === 'freeplay');
 }
 
+let freeplayStage = null;
+
+function layoutFreeplayStageRange() {
+    const stage = freeplayStage;
+    if (!stage?.expanded) return;
+    const { wrapper, range, lower, higher } = stage;
+    const start = wrapper.scrollLeft;
+    const end = start + wrapper.clientWidth;
+    const visible = pianoKeys.filter(key => key && key.offsetLeft < end && key.offsetLeft + key.offsetWidth > start);
+    range.textContent = visible.length
+        ? `${visible[0].dataset.name}–${visible[visible.length - 1].dataset.name}` : '';
+    lower.disabled = start <= 1;
+    higher.disabled = end >= wrapper.scrollWidth - 1;
+}
+
+function panFreeplayStage(direction) {
+    const stage = freeplayStage;
+    if (!stage?.expanded) return;
+    const whiteKeyWidth = pianoKeys.find(key => key?.classList.contains('white-key'))?.offsetWidth || 42;
+    stage.wrapper.scrollTo({ left: stage.wrapper.scrollLeft + direction * 7 * whiteKeyWidth, behavior: 'instant' });
+    layoutFreeplayStageRange();
+}
+
+function setFreeplayStageExpanded(expanded, restoreFocus = false) {
+    const stage = freeplayStage;
+    if (!stage || stage.expanded === expanded) return;
+    const previouslyFocused = document.activeElement;
+    const scrollLeft = stage.wrapper.scrollLeft;
+    stage.expanded = expanded;
+    document.body.classList.toggle('freeplay-expanded', expanded);
+    stage.expand.setAttribute('aria-expanded', String(expanded));
+    stage.wrapper.scrollLeft = scrollLeft;
+    if (expanded) {
+        layoutFreeplayStageRange();
+        if (previouslyFocused !== document.body && !stage.bar.contains(previouslyFocused)) {
+            stage.exit.focus({ preventScroll: true });
+        }
+    } else if (restoreFocus || stage.bar.contains(previouslyFocused)) {
+        stage.expand.focus({ preventScroll: true });
+    }
+}
+
+function syncFreeplayStage() {
+    const stage = freeplayStage;
+    if (!stage) return;
+    if (!stage.orientation.matches) stage.dismissedLandscape = false;
+    setFreeplayStageExpanded(currentMode === 'freeplay' && stage.touch.matches &&
+        (stage.manualPortrait || (stage.landscape.matches && !stage.dismissedLandscape)));
+}
+
+function dismissFreeplayStage() {
+    const stage = freeplayStage;
+    stage.manualPortrait = false;
+    if (stage.orientation.matches) stage.dismissedLandscape = true;
+    setFreeplayStageExpanded(false, true);
+}
+
+function setupFreeplayStage() {
+    if (!window.matchMedia) return;
+    const byId = id => document.getElementById(id);
+    const stage = freeplayStage = {
+        wrapper: document.querySelector('.piano-wrapper'),
+        bar: document.querySelector('.freeplay-stage-bar'),
+        expand: byId('freeplayExpand'), exit: byId('freeplayExit'),
+        lower: byId('freeplayPanLower'), higher: byId('freeplayPanHigher'),
+        range: byId('freeplayVisibleRange'),
+        touch: window.matchMedia('(max-width: 950px) and (pointer: coarse)'),
+        orientation: window.matchMedia('(orientation: landscape)'),
+        landscape: window.matchMedia('(orientation: landscape) and (max-height: 540px)'),
+        expanded: false, manualPortrait: false, dismissedLandscape: false
+    };
+    stage.expand.addEventListener('click', () => {
+        if (currentMode !== 'freeplay' || !stage.touch.matches) return;
+        stage.manualPortrait = !stage.landscape.matches;
+        stage.dismissedLandscape = false;
+        setFreeplayStageExpanded(true);
+    });
+    stage.exit.addEventListener('click', dismissFreeplayStage);
+    stage.lower.addEventListener('click', () => panFreeplayStage(-1));
+    stage.higher.addEventListener('click', () => panFreeplayStage(1));
+    stage.wrapper.addEventListener('scroll', layoutFreeplayStageRange, { passive: true });
+    window.addEventListener('resize', layoutFreeplayStageRange, { passive: true });
+    for (const media of [stage.touch, stage.orientation, stage.landscape]) {
+        if (media.addEventListener) media.addEventListener('change', syncFreeplayStage);
+        else if (media.addListener) media.addListener(syncFreeplayStage);
+    }
+    window.addEventListener('pagehide', () => {
+        releaseFreeplayKeys();
+        setFreeplayStageExpanded(false);
+    });
+    window.addEventListener('pageshow', syncFreeplayStage);
+    syncFreeplayStage();
+}
+
 function freeplayNoteOn(code) {
     if (activeKeySources[code]) return; // 防止按键重复触发
 
@@ -2479,6 +2614,11 @@ function handlePitchKey(e) {
 }
 
 document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && freeplayStage?.expanded) {
+        e.preventDefault();
+        dismissFreeplayStage();
+        return;
+    }
     // 忽略长按产生的自动重复事件（避免连续触发出题、抢占音源等）
     if (e.repeat) return;
     const tag = (e.target && e.target.tagName) || '';
@@ -3822,6 +3962,7 @@ async function init() {
     populateSelects();
     setupGameRangeListeners();
     pianoKeys = buildPiano();
+    setupFreeplayStage();
     updateRangeHighlight();
     setupOctaveRefModeListener();
     setupVelocityControls();
