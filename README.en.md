@@ -21,7 +21,9 @@ No installation needed — open and play (static build on GitHub Pages):
 
 ## ✨ Features
 
-Ear Training and Free Play are in the main navigation; Intonation, Melody Memory, and Interval Challenge are in the ear-training mini-games menu. The app includes live stats, progress curves, record export/import, and mobile support.
+Ear Training and Free Play are in the main navigation; Pitch Direction, Tuning, Melody Memory, and Interval Challenge are listed directly in the ear-training mini-games menu. The app includes live stats, progress curves, record export/import, and mobile support.
+
+The home-screen range applies to every exercise and mini-game, but not Free Play. If an exercise cannot fit in the selected range, it asks you to widen the range instead of playing outside it.
 
 ### 🎶 Melody Memory
 

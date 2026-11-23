@@ -5,7 +5,9 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const vm = require('node:vm');
 
-const script = readFileSync(process.env.PIANO_TEMPLATE || join(__dirname, '../templates/index.html'), 'utf8')
+const html = readFileSync(process.env.PIANO_TEMPLATE || join(__dirname, '../templates/index.html'), 'utf8');
+const rangeScript = html.split('// ========== 小游戏音域 ==========')[1].split('// ========== 听音接龙 ==========')[0];
+const script = html
     .split('// ========== 音程挑战 ==========')[1]
     .split('// ========== 初始化 ==========')[0];
 
@@ -20,11 +22,14 @@ function harness() {
         return { ...element(), dataset: { intervalChoice: i }, label, querySelector: () => label };
     });
     const played = [], timers = [], random = [];
-    const pitchNames = { 60: 'C4', 62: 'D4', 64: 'E4', 65: 'F4', 67: 'G4', 69: 'A4', 71: 'B4' };
     const h = { played, nodes, options, failMidi: null, random };
     const cx = vm.createContext({
         currentMode: 'interval', VELOCITY_LAYERS: ['mf'],
-        ALL_NOTES: Array.from({ length: 88 }, (_, i) => ({ name: pitchNames[21 + i] })),
+        lowNoteIndex: 39, highNoteIndex: 60,
+        ALL_NOTES: Array.from({ length: 88 }, (_, i) => {
+            const midi = i + 21;
+            return { midi, name: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][midi % 12] + (Math.floor(midi / 12) - 1) };
+        }),
         document: { getElementById: id => nodes[id] ??= element(), querySelectorAll: () => options },
         Math: { floor: Math.floor, random: () => random.shift() ?? 0 },
         setTimeout: callback => timers.push(callback),
@@ -36,7 +41,7 @@ function harness() {
         },
     });
     h.run = code => vm.runInContext(code, cx);
-    h.run(script + '\nsetupInterval();');
+    h.run(rangeScript + script + '\nsetupInterval();');
     h.drain = async () => {
         while (timers.length) {
             timers.shift()();
@@ -129,4 +134,33 @@ test('explanations spell accidentals according to the selected interval, not raw
     assert.deepEqual(Array.from(h.run('intervalNoteNames({notes: [60, 63], distance: 3})')), ['C4', 'E♭4']);
     assert.deepEqual(Array.from(h.run('intervalNoteNames({notes: [60, 55], distance: 5})')), ['C4', 'G3']);
     assert.deepEqual(Array.from(h.run('intervalNoteNames({notes: [71, 75], distance: 4})')), ['B4', 'D♯5']);
+});
+
+test('advanced and beginner pairs stay within narrow, transposed or extreme ranges; stale rounds cannot replay', async () => {
+    const h = harness();
+    h.nodes.intervalAdvance.click();
+    const oldSource = h.played[0].source;
+    h.run('lowNoteIndex = 85; highNoteIndex = 87; renderInterval()');
+    await h.drain();
+    assert.ok(oldSource.stopped);
+    assert.equal(h.nodes.intervalProgress.textContent, '0 / 5');
+    h.nodes.intervalReplay.click();
+    await h.drain();
+    assert.equal(h.played.length, 1);
+    for (let i = 1; i <= 5; i++) {
+        h.nodes.intervalAdvance.click();
+        await h.drain();
+        const { notes, choices, distance } = h.run('intervalRound.question');
+        assert.deepEqual(Array.from(choices), [1, 2]);
+        assert.ok(Array.from(notes).every(midi => midi >= 106 && midi <= 108));
+        assert.equal(h.options.filter(option => !option.hidden).length, 2);
+        h.run('answerInterval(3)'); // Placeholder shortcut cannot submit an invisible answer.
+        assert.equal(h.run('intervalRound.selected'), null);
+        h.options[choices.indexOf(distance)].click();
+    }
+    h.run('highNoteIndex = 86; renderInterval();');
+    assert.ok(h.nodes.intervalAdvance.disabled);
+    assert.match(h.nodes.intervalStatus.textContent, /至少.*两个半音/);
+    h.run('highNoteIndex = 84; renderInterval();');
+    assert.ok(h.nodes.intervalAdvance.disabled);
 });

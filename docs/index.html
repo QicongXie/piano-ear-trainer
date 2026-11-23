@@ -60,6 +60,7 @@
             color: #aaa;
             white-space: nowrap;
         }
+        .range-scope { color: #aeb6c9; font-size: 0.82em; line-height: 1.5; }
         select, button {
             padding: 8px 16px;
             border-radius: 8px;
@@ -222,15 +223,7 @@
             padding: 16px 20px;
             margin-bottom: 16px;
         }
-        .pitch-submodes { display: flex; gap: 10px; margin-bottom: 14px; }
-        .pitch-submode-btn {
-            flex: 1; padding: 10px; text-align: center; cursor: pointer;
-            border-radius: 10px; border: 1px solid rgba(255,255,255,0.12);
-            background: rgba(255,255,255,0.04); color: #bbb; font-size: 0.95em;
-            transition: all .2s;
-        }
-        .pitch-submode-btn.active { background: #6c5ce7; color: #fff; border-color: #6c5ce7; }
-        .pitch-submode-btn:hover:not(.active) { background: rgba(255,255,255,0.08); }
+        .pitch-mode-title { text-align: center; margin: 0 0 8px; font-size: 1.25em; }
         .pitch-submode-desc { font-size: 0.8em; color: #777; margin-bottom: 12px; text-align: center; line-height: 1.5; }
         .pitch-status {
             display: flex; flex-wrap: wrap; gap: 18px; justify-content: center;
@@ -643,7 +636,6 @@
 
             /* 音准模式：面板/按钮更紧凑 */
             .pitch-block { padding: 12px 14px; }
-            .pitch-submode-btn { padding: 8px; font-size: 0.85em; }
             .pitch-status { gap: 12px; font-size: 0.82em; }
             .pitch-ans-btn { padding: 16px 6px; font-size: 1em; }
             .pitch-tuning-actions { gap: 8px; }
@@ -671,7 +663,7 @@
         }
         .games-menu-items button:hover, .games-menu-items button[aria-current="true"] { background: #403568; }
         @media (max-width: 600px) {
-            .games-menu-items button, .pitch-submode-btn { min-height: 44px; }
+            .games-menu-items button { min-height: 44px; }
         }
         .melody-panel {
             max-width: 720px; margin: 0 auto 20px; padding: clamp(16px, 4vw, 30px);
@@ -699,6 +691,7 @@
             border: 1px solid #cabde4; border-bottom: 4px solid #b5a7d2; border-radius: 7px;
         }
         .melody-keys button:not(:disabled):hover { background: #e5d9ff; }
+        .melody-keys button[hidden], .interval-options button[hidden] { display: none; }
         .melody-keys button:disabled { opacity: 0.45; cursor: default; }
         .melody-keys kbd { display: block; font-size: 0.76em; opacity: 0.75; margin-bottom: 3px; }
         .melody-status { min-height: 3em; color: #fff; text-align: center; margin: 10px 0; }
@@ -745,7 +738,8 @@
             <details class="games-menu" id="gamesMenu">
                 <summary id="gamesMenuToggle">练耳小游戏 <span class="games-menu-caret" aria-hidden="true">▾</span></summary>
                 <div class="games-menu-items" id="gamesMenuItems">
-                    <button type="button" data-game-mode="pitch" aria-controls="pitchPanel">🎯 音准训练</button>
+                    <button type="button" data-game-mode="pitch" data-pitch-submode="direction" aria-controls="pitchPanel">🎯 偏差方向</button>
+                    <button type="button" data-game-mode="pitch" data-pitch-submode="tuning" aria-controls="pitchPanel">🎼 调准练习</button>
                     <button type="button" data-game-mode="melody" aria-controls="melodyPanel">🎶 听音接龙</button>
                     <button type="button" data-game-mode="interval" aria-controls="intervalPanel">🎼 音程挑战</button>
                 </div>
@@ -756,12 +750,12 @@
         <div class="controls">
             <div class="controls-row">
                 <div class="control-group">
-                    <label>低音:</label>
-                    <select id="lowNote"></select>
+                    <label for="lowNote">低音:</label>
+                    <select id="lowNote" aria-describedby="rangeScope"></select>
                 </div>
                 <div class="control-group">
-                    <label>高音:</label>
-                    <select id="highNote"></select>
+                    <label for="highNote">高音:</label>
+                    <select id="highNote" aria-describedby="rangeScope"></select>
                 </div>
                 <button class="primary" id="btnNewQuestion" onclick="newQuestion()">
                     🎲 出题 (A)
@@ -776,6 +770,7 @@
                     💡 显示答案 (F)
                 </button>
             </div>
+            <p class="range-scope" id="rangeScope">此音域适用于所有练习和小游戏；自由弹奏不受限制。</p>
         </div>
 
         <!-- 高级设置（折叠） -->
@@ -941,10 +936,7 @@
         <!-- 音准（微分音）训练模式面板 -->
         <div id="pitchPanel" style="display:none;">
             <div class="pitch-block">
-                <div class="pitch-submodes">
-                    <button type="button" class="pitch-submode-btn active" data-submode="direction" onclick="setPitchSubMode('direction')">🎯 偏差方向</button>
-                    <button type="button" class="pitch-submode-btn" data-submode="tuning" onclick="setPitchSubMode('tuning')">🎼 调准练习</button>
-                </div>
+                <h2 class="pitch-mode-title" id="pitchModeTitle">🎯 偏差方向</h2>
                 <div class="pitch-submode-desc" id="pitchSubModeDesc"></div>
 
                 <div class="controls-row" style="justify-content:center; margin-bottom:14px;">
@@ -1007,7 +999,7 @@
 
         <section id="melodyPanel" class="melody-panel" aria-labelledby="melodyTitle" hidden>
             <h2 id="melodyTitle">🎶 听音接龙</h2>
-            <p class="melody-intro">先用下方五个琴键熟悉音高，再按「开始接龙」。从三个音开始，听完后按顺序复现；答对一轮就加一个音，成功复现八个音即通关。</p>
+            <p class="melody-intro">先试听下方琴键，再按「开始接龙」。从三个音开始，听完后按顺序复现；答对一轮就加一个音，成功复现八个音即通关。琴键取自首页音域。</p>
             <div class="melody-score">
                 <span>本局 <strong id="melodyScore">0</strong> 轮</span>
                 <span>最佳 <strong id="melodyBest">0</strong> 轮</span>
@@ -1019,17 +1011,17 @@
                 <button type="button" class="secondary" id="melodyReplay" disabled>重听旋律</button>
             </div>
             <div class="melody-keys" id="melodyKeys" aria-label="接龙琴键">
-                <button type="button" data-melody-note="0" aria-keyshortcuts="1"><kbd>1</kbd>C4</button>
-                <button type="button" data-melody-note="1" aria-keyshortcuts="2"><kbd>2</kbd>D4</button>
-                <button type="button" data-melody-note="2" aria-keyshortcuts="3"><kbd>3</kbd>E4</button>
-                <button type="button" data-melody-note="3" aria-keyshortcuts="4"><kbd>4</kbd>G4</button>
-                <button type="button" data-melody-note="4" aria-keyshortcuts="5"><kbd>5</kbd>A4</button>
+                <button type="button" data-melody-note="0" aria-keyshortcuts="1"><kbd>1</kbd><span></span></button>
+                <button type="button" data-melody-note="1" aria-keyshortcuts="2"><kbd>2</kbd><span></span></button>
+                <button type="button" data-melody-note="2" aria-keyshortcuts="3"><kbd>3</kbd><span></span></button>
+                <button type="button" data-melody-note="3" aria-keyshortcuts="4"><kbd>4</kbd><span></span></button>
+                <button type="button" data-melody-note="4" aria-keyshortcuts="5"><kbd>5</kbd><span></span></button>
             </div>
         </section>
 
         <section id="intervalPanel" class="melody-panel" aria-labelledby="intervalTitle" hidden>
             <h2 id="intervalTitle">🎼 音程挑战</h2>
-            <p class="melody-intro">每轮五题。听两个钢琴音，猜它们相隔多远，不用猜音名。前三题只上行，后两题也可能下行。</p>
+            <p class="melody-intro">每轮五题。听两个钢琴音，猜它们相隔多远，不用猜音名。前三题只上行，后两题也可能下行。两音都从首页音域中选取。</p>
             <div class="melody-score">
                 <span>进度 <strong id="intervalProgress">0 / 5</strong></span>
                 <span>答对 <strong id="intervalScore">0</strong> 题</span>
@@ -1590,15 +1582,22 @@ function updateRangeHighlight() {
     }
 }
 
-// 如果新范围已排除当前答案，作废旧题，不应当把设置变化计作答错。
+function isTrainingNoteInRange(index) {
+    return Number.isInteger(index) && index >= lowNoteIndex && index <= highNoteIndex;
+}
+
+// 取消旧范围相关的参考音；如果已排除当前答案，无扣分地作废旧题。
 function updateTrainingRange() {
-    updateRangeHighlight();
-    if (currentMode !== 'training' || !currentAnswer) return;
-    if (currentAnswer.index >= lowNoteIndex && currentAnswer.index <= highNoteIndex) return;
-    if (currentPlayingSource) {
-        try { currentPlayingSource.stop(); } catch (e) {}
-        currentPlayingSource = null;
+    if (currentMode === 'pitch') {
+        resetPitchRound();
+        lastPitchQuestionAt = 0;
+        return;
     }
+    if (currentMode !== 'training') return;
+    updateRangeHighlight();
+    invalidateTrainingReference();
+    if (!currentAnswer || isTrainingNoteInRange(currentAnswer.index)) return;
+    stopCurrentNote();
     resetQuestion();
     lastNewQuestionAt = 0;
     document.getElementById('statusText').textContent = '音域已调整，请重新出题';
@@ -1606,7 +1605,7 @@ function updateTrainingRange() {
 
 // ========== 游戏逻辑 ==========
 
-function switchMode(mode) {
+function switchMode(mode, requestedPitchMode = pitchSubMode) {
     if (mode !== currentMode) {
         if (currentMode === 'pitch') resetPitchRound();
         if (currentMode === 'freeplay') releaseFreeplayKeys();
@@ -1619,7 +1618,7 @@ function switchMode(mode) {
         if (active) t.setAttribute('aria-current', 'true');
         else t.removeAttribute('aria-current');
     });
-    updateGamesMenu(mode);
+    updateGamesMenu(mode, requestedPitchMode);
 
     // 音感训练模式下，根据参考模式决定是否显示播放参考按钮
     updateRefButtonVisibility();
@@ -1672,7 +1671,7 @@ function switchMode(mode) {
 
     // 进入音准模式：刷新其 UI 与曲线
     if (isPitch) {
-        setPitchSubMode(pitchSubMode);
+        setPitchSubMode(requestedPitchMode);
         updatePitchStats();
         drawPitchCurve();
     }
@@ -1792,94 +1791,46 @@ function replayCurrentNote() {
  */
 function getOctaveRefNotes() {
     const mode = document.getElementById('octaveRefMode').value;
-    const answerIndex = currentAnswer.index;
-    const ansOctave = currentAnswer.octave;
+    const answerIndex = currentAnswer?.index;
+    if (!isTrainingNoteInRange(answerIndex)) return [];
+
+    function consecutiveNotes(count) {
+        if (!Number.isInteger(count) || count < 1) return [];
+        const minStart = Math.max(lowNoteIndex, answerIndex - count + 1);
+        const maxStart = Math.min(answerIndex, highNoteIndex - count + 1);
+        if (maxStart < minStart) return [];
+        const start = minStart + Math.floor(Math.random() * (maxStart - minStart + 1));
+        return Array.from({ length: count }, (_, i) => start + i);
+    }
 
     switch (mode) {
-        case 'chromatic': {
-            // 完整半音阶（12个半音）：随机起始，上行12个音，确保包含目标音
-            const minStart = Math.max(0, answerIndex - 11);
-            const maxStart = Math.min(answerIndex, ALL_NOTES.length - 12);
-            if (maxStart < minStart) return [];
-            const start = minStart + Math.floor(Math.random() * (maxStart - minStart + 1));
-            const notes = [];
-            for (let i = start; i < start + 12 && i < ALL_NOTES.length; i++) notes.push(i);
-            return notes;
-        }
+        case 'chromatic':
+            return consecutiveNotes(12);
         case 'diatonic': {
-            // 自然音阶（7个白键音）：随机起始白键，上行7个白键音
-            // 如果目标音是白键，确保包含目标音；
-            // 如果目标音是黑键，确保包含其两侧的白键，让学生可以推断出中间的黑键位置
             const whiteKeys = [];
-            for (let i = 0; i < ALL_NOTES.length; i++) {
+            for (let i = lowNoteIndex; i <= highNoteIndex; i++) {
                 if (!ALL_NOTES[i].isBlack) whiteKeys.push(i);
             }
-            const isTargetBlack = ALL_NOTES[answerIndex].isBlack;
-            let lowerWhitePos, upperWhitePos;
-            if (isTargetBlack) {
-                // 目标音是黑键：找到左右两侧的白键位置
-                upperWhitePos = whiteKeys.findIndex(idx => idx > answerIndex);
-                if (upperWhitePos === -1) upperWhitePos = whiteKeys.length - 1;
-                lowerWhitePos = upperWhitePos - 1;
-                if (lowerWhitePos < 0) lowerWhitePos = 0;
-                // 确保7个白键同时覆盖 lowerWhitePos 和 upperWhitePos
-                const minWPos = Math.max(0, upperWhitePos - 6);
-                const maxWPos = Math.min(lowerWhitePos, whiteKeys.length - 7);
-                if (maxWPos < minWPos) return [];
-                const startWPos = minWPos + Math.floor(Math.random() * (maxWPos - minWPos + 1));
-                const notes = [];
-                for (let i = startWPos; i < startWPos + 7 && i < whiteKeys.length; i++) {
-                    notes.push(whiteKeys[i]);
-                }
-                return notes;
-            } else {
-                // 目标音是白键：确保包含目标音
-                let targetWhitePos = whiteKeys.findIndex(idx => idx >= answerIndex);
-                if (targetWhitePos === -1) targetWhitePos = whiteKeys.length - 1;
-                const minWPos = Math.max(0, targetWhitePos - 6);
-                const maxWPos = Math.min(targetWhitePos, whiteKeys.length - 7);
-                if (maxWPos < minWPos) return [];
-                const startWPos = minWPos + Math.floor(Math.random() * (maxWPos - minWPos + 1));
-                const notes = [];
-                for (let i = startWPos; i < startWPos + 7 && i < whiteKeys.length; i++) {
-                    notes.push(whiteKeys[i]);
-                }
-                return notes;
-            }
+            // 黑键答案需要两侧白键同时在音域内，避免只给出不完整的参照。
+            const black = ALL_NOTES[answerIndex].isBlack;
+            const upper = whiteKeys.findIndex(idx => idx >= answerIndex);
+            const lower = upper - (black ? 1 : 0);
+            if (upper < 0 || lower < 0) return [];
+            const minStart = Math.max(0, upper - 6);
+            const maxStart = Math.min(lower, whiteKeys.length - 7);
+            if (maxStart < minStart) return [];
+            const start = minStart + Math.floor(Math.random() * (maxStart - minStart + 1));
+            return whiteKeys.slice(start, start + 7);
         }
-        case 'context': {
-            // 上下文窗口：目标音在窗口内随机位置，总宽度为 2*range+1 个半音
-            const range = parseInt(document.getElementById('contextRange').value);
-            const windowSize = 2 * range + 1;
-            // 目标音在窗口内的偏移量随机：0 ~ windowSize-1
-            // 即窗口起始 = answerIndex - offset, 目标音在 offset 位置
-            const minOffset = Math.max(0, answerIndex - (ALL_NOTES.length - 1) + (windowSize - 1));
-            const maxOffset = Math.min(windowSize - 1, answerIndex);
-            const offset = minOffset + Math.floor(Math.random() * (maxOffset - minOffset + 1));
-            const start = Math.max(0, answerIndex - offset);
-            const end = Math.min(ALL_NOTES.length - 1, start + windowSize - 1);
-            const notes = [];
-            for (let i = start; i <= end; i++) notes.push(i);
-            return notes;
-        }
+        case 'context':
+            return consecutiveNotes(2 * Number(document.getElementById('contextRange').value) + 1);
         case 'tonic': {
-            // 仅主音：只播放该八度的 C
-            const cIndex = ALL_NOTES.findIndex(n => n.noteName === 'C' && n.octave === ansOctave);
-            if (cIndex === -1) return [];
-            return [cIndex];
+            const cIndex = ALL_NOTES.findIndex(n => n.noteName === 'C' && n.octave === currentAnswer.octave);
+            return isTrainingNoteInRange(cIndex) ? [cIndex] : [];
         }
         case 'standardA': {
-            // 标准A参考：播放 A4 (440Hz, MIDI 69)
             const a4Index = ALL_NOTES.findIndex(n => n.name === 'A4');
-            if (a4Index === -1) return [];
-            return [a4Index];
-        }
-        case 'interval': {
-            // 音程参考：从目标音所在八度的主音C出发，播放指定音程
-            // 返回特殊格式：{type: 'interval', notes: [...], intervalName: '...'}
-            // 由于 getOctaveRefNotes 返回的是数组，这里用特殊标记
-            // 实际播放逻辑在 playOctaveHint 中单独处理
-            return { type: 'interval' };
+            return isTrainingNoteInRange(a4Index) ? [a4Index] : [];
         }
         default:
             return [];
@@ -1902,55 +1853,51 @@ const RANDOM_INTERVALS = [2, 3, 4, 5, 7, 9, 12];
  * 返回 {notes: [{index, label}...], intervalName: string}
  */
 function getIntervalRefNotes() {
+    if (!isTrainingNoteInRange(currentAnswer?.index)) return null;
     const ansOctave = currentAnswer.octave;
     const direction = document.getElementById('intervalDirection').value;
-    let intervalSemitones = document.getElementById('intervalType').value;
+    const intervalValue = document.getElementById('intervalType').value;
+    const sizes = intervalValue === 'random' ? RANDOM_INTERVALS : [Number(intervalValue)];
+    const directions = direction === 'random' ? ['up', 'down'] : [direction];
+    const candidates = [];
 
-    // 随机音程
-    if (intervalSemitones === 'random') {
-        intervalSemitones = RANDOM_INTERVALS[Math.floor(Math.random() * RANDOM_INTERVALS.length)];
-    } else {
-        intervalSemitones = parseInt(intervalSemitones);
-    }
-
-    if (!Number.isInteger(intervalSemitones) || intervalSemitones < 1 || intervalSemitones > 12) return null;
-    const intervalName = INTERVAL_NAMES[intervalSemitones];
-
-    const actualDirection = direction === 'random'
-        ? (Math.random() < 0.5 ? 'up' : 'down')
-        : direction;
-    if (!['up', 'down', 'both'].includes(actualDirection)) return null;
-
-    // 优先用目标音所在八度的 C；如果琴键边缘无法容纳所选音程，
-    // 只移动参考根音的八度，不把上行改成下行，也不省略其中一个方向。
-    const needsUp = actualDirection !== 'down';
-    const needsDown = actualDirection !== 'up';
-    let rootIndex = -1;
-    let nearestOctaveDistance = Infinity;
-    for (let i = 0; i < ALL_NOTES.length; i++) {
-        const note = ALL_NOTES[i];
-        if (note.noteName !== 'C') continue;
-        if (needsUp && i + intervalSemitones >= ALL_NOTES.length) continue;
-        if (needsDown && i - intervalSemitones < 0) continue;
-        const distance = Math.abs(note.octave - ansOctave);
-        if (distance < nearestOctaveDistance) {
-            nearestOctaveDistance = distance;
-            rootIndex = i;
+    // 在音域内找最近的 C 根音；显式选择的音程和方向都不能改动。
+    for (const semitones of sizes) {
+        if (!Number.isInteger(semitones) || !INTERVAL_NAMES[semitones]) continue;
+        for (const actualDirection of directions) {
+            if (!['up', 'down', 'both'].includes(actualDirection)) continue;
+            const needsUp = actualDirection !== 'down';
+            const needsDown = actualDirection !== 'up';
+            let rootIndex = -1;
+            let nearestOctaveDistance = Infinity;
+            for (let i = lowNoteIndex; i <= highNoteIndex; i++) {
+                const note = ALL_NOTES[i];
+                if (note.noteName !== 'C') continue;
+                if (needsUp && !isTrainingNoteInRange(i + semitones)) continue;
+                if (needsDown && !isTrainingNoteInRange(i - semitones)) continue;
+                const distance = Math.abs(note.octave - ansOctave);
+                if (distance < nearestOctaveDistance) {
+                    nearestOctaveDistance = distance;
+                    rootIndex = i;
+                }
+            }
+            if (rootIndex >= 0) candidates.push({ rootIndex, semitones, actualDirection, needsUp, needsDown });
         }
     }
-    if (rootIndex === -1) return null;
-
-    const upperIndex = rootIndex + intervalSemitones;
-    const lowerIndex = rootIndex - intervalSemitones;
+    if (!candidates.length) return null;
+    const { rootIndex, semitones, actualDirection, needsUp, needsDown } =
+        candidates[Math.floor(Math.random() * candidates.length)];
+    const intervalName = INTERVAL_NAMES[semitones];
     const rootNote = { index: rootIndex, label: ALL_NOTES[rootIndex].name + ' (根音)' };
     const notes = [];
     if (needsUp) {
-        notes.push(rootNote, { index: upperIndex, label: ALL_NOTES[upperIndex].name + ' (↑' + intervalName + ')' });
+        const index = rootIndex + semitones;
+        notes.push(rootNote, { index, label: ALL_NOTES[index].name + ' (↑' + intervalName + ')' });
     }
     if (needsDown) {
-        notes.push(rootNote, { index: lowerIndex, label: ALL_NOTES[lowerIndex].name + ' (↓' + intervalName + ')' });
+        const index = rootIndex - semitones;
+        notes.push(rootNote, { index, label: ALL_NOTES[index].name + ' (↓' + intervalName + ')' });
     }
-
     return { notes, intervalName, direction: actualDirection };
 }
 
@@ -1969,6 +1916,12 @@ function clearReferenceKey(run) {
     if (run.label) run.label.remove();
     run.key = null;
     run.label = null;
+}
+
+function invalidateTrainingReference() {
+    cancelReferencePlayback();
+    cachedOctaveRefNotes = null;
+    cachedIntervalRefNotes = null;
 }
 
 function cancelReferencePlayback() {
@@ -2014,7 +1967,15 @@ async function playOctaveHint() {
         if (Array.isArray(indices)) description = `${modeNames[mode]}参考（${indices.length}个音）`;
     }
     if (!Array.isArray(indices) || !indices.length) {
-        hint.innerHTML = '<span class="hint-wrong">⚠️ 无法生成参考音，请检查设置</span>';
+        const unavailable = {
+            standardA: '标准 A 固定为 A4，当前音域不包含 A4。请扩大音域或更换参考模式。',
+            tonic: '目标音所在八度的主音 C 不在当前音域内。请扩大音域或更换参考模式。',
+            chromatic: '当前音域太窄，放不下包含目标音的 12 个半音。请扩大音域或更换参考模式。',
+            diatonic: '当前音域无法给这个目标音提供完整的 7 个白键参照。请扩大音域或更换参考模式。',
+            context: '当前音域放不下选定的参考窗口。请选择更小的窗口或扩大音域。',
+            interval: '当前音域内找不到能按所选音程和方向演奏的 C 根音。请扩大音域、缩小音程或更换参考模式。'
+        };
+        hint.textContent = unavailable[mode] || '当前音域内无法播放此参考。请检查设置。';
         return;
     }
 
@@ -2098,9 +2059,14 @@ function onKeyClick(noteIndex) {
     }
 
     if (!currentAnswer) return;
+    if (!isTrainingNoteInRange(noteIndex)) {
+        document.getElementById('hintArea').innerHTML =
+            '<span class="hint-wrong">⚠️ 请在当前音域内选择；可切换到自由弹奏使用全部琴键。</span>';
+        return;
+    }
     cancelReferencePlayback();
 
-    // 已答对后，解锁键盘允许自由弹奏（可以对比听各个音）
+    // 已答对后，允许在当前音域内对比各个音。
     if (isAnswered) {
         const note = ALL_NOTES[noteIndex];
         playNote(note.midi, 2.0);
@@ -2111,13 +2077,6 @@ function onKeyClick(noteIndex) {
             setTimeout(() => keyEl.classList.remove('highlight'), 300);
         }
         showNoteName(noteIndex);  // 显示音名（自动消失）
-        return;
-    }
-
-    // 检查是否在范围内
-    if (noteIndex < lowNoteIndex || noteIndex > highNoteIndex) {
-        document.getElementById('hintArea').innerHTML =
-            '<span class="hint-wrong">⚠️ 请在指定范围内选择！</span>';
         return;
     }
 
@@ -2146,8 +2105,8 @@ function onKeyClick(noteIndex) {
 
         clickedEl.classList.add('correct-key');
         document.getElementById('hintArea').innerHTML =
-            `<span class="hint-correct">✅ 正确! 答案就是 ${currentAnswer.name}（键盘已解锁，可自由弹奏对比）</span>`;
-        document.getElementById('statusText').textContent = '🎉 回答正确！键盘已解锁，点击「出题」继续';
+            `<span class="hint-correct">✅ 正确! 答案就是 ${currentAnswer.name}（可试听当前音域内的其他音）</span>`;
+        document.getElementById('statusText').textContent = '🎉 回答正确！点击「出题」继续';
 
         addHistory(`✅ 正确: ${currentAnswer.name}`, true);
     } else {
@@ -2338,9 +2297,7 @@ function setupVelocityControls() {
 
     function update() {
         const mode = modeSelect.value;
-        cancelReferencePlayback();
-        cachedOctaveRefNotes = null;
-        cachedIntervalRefNotes = null;
+        invalidateTrainingReference();
         fixedGroup.style.display = mode === 'fixed' ? 'flex' : 'none';
         if (mode === 'random') {
             descEl.textContent = `🎲 每次播放随机选择力度 (${VELOCITY_LAYERS.join(', ')})`;
@@ -2355,6 +2312,9 @@ function setupVelocityControls() {
     }
 
     modeSelect.addEventListener('change', update);
+    ['contextRange', 'intervalType', 'intervalDirection'].forEach(id => {
+        document.getElementById(id).addEventListener('change', invalidateTrainingReference);
+    });
     levelSelect.addEventListener('change', update);
     update();
 }
@@ -2826,9 +2786,8 @@ function midiToFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
 // 切换子模式（偏差方向 / 调准练习）
 function setPitchSubMode(mode, persist = true) {
     pitchSubMode = mode;
-    document.querySelectorAll('.pitch-submode-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.submode === mode);
-    });
+    const title = document.getElementById('pitchModeTitle');
+    if (title) title.textContent = mode === 'tuning' ? '🎼 调准练习' : '🎯 偏差方向';
     const desc = document.getElementById('pitchSubModeDesc');
     if (desc) desc.textContent = PITCH_SUBMODE_DESC[mode] || '';
     const dirEl = document.getElementById('pitchAnsDirection');
@@ -2874,6 +2833,11 @@ function newPitchQuestion() {
     lastPitchQuestionAt = now;
 
     const idx = pickWeightedPitchNote();
+    if (idx < 0) {
+        document.getElementById('pitchFeedback').textContent =
+            '音准练习需要至少 3 个连续半音键（例如 C4–D4），才能让两个方向和调准滑块都保持在所选音域内。请先扩大主页音域。';
+        return;
+    }
     const nextNote = ALL_NOTES[idx];
     const requestedLayer = getVelocityLayer();
     const { sampleName } = findNearestSample(nextNote.midi);
@@ -3001,7 +2965,9 @@ function answerPitchDirection(dir) {
 
 // 调准练习：滑块拖动实时更新目标音分（不自动发声，松手后由 onchange 试听单音）
 function updateTuneFromSlider(raw) {
-    pitchTuneCents = (parseFloat(raw) - pitchTrueRaw) * TUNE_SCALE;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) return;
+    pitchTuneCents = (Math.max(0, Math.min(100, value)) - pitchTrueRaw) * TUNE_SCALE;
 }
 
 // 调准练习：按钮微调（deltaCents 为正=调高，负=调低），并试听单音
@@ -3020,10 +2986,13 @@ function nudgeTune(deltaCents) {
 function pickWeightedPitchNote() {
     const smartEl = document.getElementById('smartPitchWeight');
     const useSmart = smartEl ? smartEl.checked : true;
-    const lo = Math.min(lowNoteIndex, highNoteIndex);
-    const hi = Math.max(lowNoteIndex, highNoteIndex);
+    // 基准音离上下限各至少 100 音分，方向题不会泄露偏移方向，
+    // 调准滑块的全部行程也能留在当前音域内。
+    const lo = lowNoteIndex + 1;
+    const hi = highNoteIndex - 1;
     const span = hi - lo + 1;
-    if (span <= 1) return lo;
+    if (span < 1) return -1;
+    if (span === 1) return lo;
     if (!useSmart) return lo + Math.floor(Math.random() * span);
 
     const weights = [];
@@ -3326,9 +3295,34 @@ function importProgress(input) {
     reader.readAsText(file);
 }
 
+// ========== 小游戏音域 ==========
+function readGameRange() {
+    const low = ALL_NOTES[lowNoteIndex];
+    const high = ALL_NOTES[highNoteIndex];
+    return {
+        key: `${lowNoteIndex}:${highNoteIndex}`,
+        low: low?.midi,
+        high: high?.midi,
+        valid: !!low && !!high && low.midi <= high.midi,
+    };
+}
+
+function gameNoteName(midi) {
+    return ALL_NOTES[midi - 21].name;
+}
+
+function setupGameRangeListeners() {
+    for (const id of ['lowNote', 'highNote']) {
+        document.getElementById(id).addEventListener('change', () => {
+            // The primary selection listener runs first and updates the range indices.
+            syncMelodyRange();
+            syncIntervalRange();
+        });
+    }
+}
+
 // ========== 听音接龙 ==========
-const MELODY_NOTE_NAMES = ['C4', 'D4', 'E4', 'G4', 'A4'];
-const MELODY_MIDI = [60, 62, 64, 67, 69];
+const MELODY_PATTERN = [0, 2, 4, 7, 9];
 const MELODY_MAX_LENGTH = 8;
 const MELODY_BEST_KEY = 'piano-ear-trainer.melody.best.v1';
 const melodyRound = {
@@ -3339,20 +3333,46 @@ const melodyRound = {
     phase: 'idle',
     playToken: 0,
     sources: new Set(),
+    rangeKey: null,
+    pitches: [],
 };
 
+function syncMelodyRange() {
+    const range = readGameRange();
+    if (range.key === melodyRound.rangeKey) return false;
+    stopMelody();
+    const width = range.high - range.low;
+    let pitches = [];
+    if (range.valid && width >= 9) {
+        const base = range.low <= 60 && range.high >= 69 ? 60 : range.low;
+        pitches = MELODY_PATTERN.map(offset => base + offset);
+    } else if (range.valid && width >= 2) {
+        const count = Math.min(5, width + 1);
+        pitches = Array.from({ length: count }, (_, i) => range.low + Math.round(i * width / (count - 1)));
+    }
+    Object.assign(melodyRound, {
+        rangeKey: range.key, pitches,
+        sequence: [], entered: 0, score: 0, phase: 'idle',
+    });
+    return true;
+}
+
 function renderMelody() {
-    const { phase, score, best, entered, sequence } = melodyRound;
+    syncMelodyRange();
+    const { phase, score, best, entered, sequence, pitches } = melodyRound;
     document.getElementById('melodyScore').textContent = score;
     document.getElementById('melodyBest').textContent = best;
 
     const advance = document.getElementById('melodyAdvance');
-    advance.disabled = !['idle', 'round-won', 'lost', 'won'].includes(phase);
+    advance.disabled = !pitches.length || !['idle', 'round-won', 'lost', 'won'].includes(phase);
     advance.textContent = phase === 'round-won' ? '下一轮'
         : (phase === 'lost' || phase === 'won') ? '再玩一局' : '开始接龙';
     document.getElementById('melodyReplay').disabled = !['answering', 'interrupted'].includes(phase);
     document.querySelectorAll('#melodyKeys button').forEach(button => {
-        button.disabled = !['idle', 'answering', 'lost', 'won'].includes(phase);
+        const midi = pitches[Number(button.dataset.melodyNote)];
+        button.hidden = midi === undefined;
+        button.querySelector('span').textContent = midi === undefined ? '' : gameNoteName(midi);
+        button.disabled = midi === undefined || !['idle', 'answering', 'lost', 'won'].includes(phase);
     });
 
     const slots = document.getElementById('melodySlots');
@@ -3361,17 +3381,18 @@ function renderMelody() {
         slot.className = 'melody-slot';
         if (i < entered) slot.classList.add('done');
         if (phase === 'lost' && i === entered) slot.classList.add('missed');
-        slot.textContent = i < entered || phase === 'lost' ? MELODY_NOTE_NAMES[note] : '·';
+        slot.textContent = i < entered || phase === 'lost' ? gameNoteName(pitches[note]) : '·';
         return slot;
     }));
 
     const messages = {
-        idle: '准备好了？你可以先试听五个琴键。',
+        idle: pitches.length ? `准备好了？你可以先试听这 ${pitches.length} 个琴键。`
+            : '请在「音感训练」把高音设为至少比低音高两个半音，接龙需要三个不同的音。',
         listening: '先听，不用按键。旋律播完后开始作答。',
         answering: `轮到你了：已答对 ${entered} / ${sequence.length} 个音。`,
         'round-won': '完全正确！下一轮会在旋律末尾再加一个音。',
         won: '🏆 通关！你完整复现了八个音。',
-        lost: `第 ${entered + 1} 个音答错了。正确旋律：${sequence.map(i => MELODY_NOTE_NAMES[i]).join(' · ')}。`,
+        lost: `第 ${entered + 1} 个音答错了。正确旋律：${sequence.map(i => gameNoteName(pitches[i])).join(' · ')}。`,
         interrupted: '播放已中断，请点击「重听旋律」再试一次。',
     };
     document.getElementById('melodyStatus').textContent = messages[phase];
@@ -3388,7 +3409,7 @@ function stopMelody(pauseRound = false) {
 
 function playMelodyNote(note, duration) {
     const layer = VELOCITY_LAYERS.includes('mf') ? 'mf' : (VELOCITY_LAYERS[0] || 'mf');
-    const played = playNote(MELODY_MIDI[note], duration, true, layer);
+    const played = playNote(melodyRound.pitches[note], duration, true, layer);
     if (!played) return false;
     melodyRound.sources.add(played.source);
     played.source.addEventListener('ended', () => melodyRound.sources.delete(played.source), { once: true });
@@ -3396,6 +3417,11 @@ function playMelodyNote(note, duration) {
 }
 
 async function listenToMelody() {
+    if (currentMode !== 'melody') return;
+    if (syncMelodyRange() || !melodyRound.sequence.length) {
+        renderMelody();
+        return;
+    }
     stopMelody();
     const token = melodyRound.playToken;
     melodyRound.entered = 0;
@@ -3419,11 +3445,17 @@ async function listenToMelody() {
 function appendMelodyNote() {
     const sequence = melodyRound.sequence;
     const last = sequence[sequence.length - 1];
-    const choices = MELODY_MIDI.map((_, i) => i).filter(i => i !== last);
+    const choices = melodyRound.pitches.map((_, i) => i).filter(i => i !== last);
     sequence.push(choices[Math.floor(Math.random() * choices.length)]);
 }
 
 function advanceMelody() {
+    if (currentMode !== 'melody') return;
+    syncMelodyRange();
+    if (!melodyRound.pitches.length) {
+        renderMelody();
+        return;
+    }
     if (melodyRound.phase === 'round-won') {
         appendMelodyNote();
     } else if (['idle', 'lost', 'won'].includes(melodyRound.phase)) {
@@ -3436,6 +3468,8 @@ function advanceMelody() {
 
 function chooseMelodyNote(note) {
     if (currentMode !== 'melody') return;
+    if (syncMelodyRange()) renderMelody();
+    if (melodyRound.pitches[note] === undefined) return;
     const isGuess = melodyRound.phase === 'answering';
     if (!isGuess && !['idle', 'lost', 'won'].includes(melodyRound.phase)) return;
 
@@ -3464,12 +3498,12 @@ function chooseMelodyNote(note) {
     renderMelody();
 }
 
-function updateGamesMenu(mode) {
+function updateGamesMenu(mode, submode) {
     const details = document.getElementById('gamesMenu');
     const summary = document.getElementById('gamesMenuToggle');
     let currentGame = false;
     details.querySelectorAll('[data-game-mode]').forEach(button => {
-        if (button.dataset.gameMode === mode) {
+        if (button.dataset.gameMode === mode && (!button.dataset.pitchSubmode || button.dataset.pitchSubmode === submode)) {
             currentGame = true;
             button.setAttribute('aria-current', 'true');
         } else button.removeAttribute('aria-current');
@@ -3484,7 +3518,7 @@ function setupGamesMenu() {
     document.getElementById('gamesMenuItems').addEventListener('click', e => {
         const button = e.target.closest('[data-game-mode]');
         if (!button) return;
-        switchMode(button.dataset.gameMode);
+        switchMode(button.dataset.gameMode, button.dataset.pitchSubmode);
         summary.focus();
     });
     details.addEventListener('keydown', e => {
@@ -3519,11 +3553,12 @@ function setupMelody() {
 
 // ========== 音程挑战 ==========
 const INTERVAL_COUNT = 5;
-const INTERVAL_EASY = [2, 4, 7, 12];
-const INTERVAL_ADVANCED = [3, 4, 5, 7];
-const INTERVAL_ROOTS = [60, 62, 64, 65, 67, 69, 71];
-const INTERVAL_DEGREES = { 2: 1, 3: 2, 4: 2, 5: 3, 7: 4, 12: 7 };
+const INTERVAL_EASY = [2, 4, 7, 12, 3, 5, 1];
+const INTERVAL_ADVANCED = [3, 4, 5, 7, 2, 1, 12];
+const NATURAL_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
+const INTERVAL_DEGREES = { 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 7: 4, 12: 7 };
 const INTERVAL_LABELS = {
+    1: ['小二度', '只差一个半音，例如钢琴上相邻的两个键'],
     2: ['大二度', '距离两个半音，等于一个全音'],
     3: ['小三度', '比大三度窄一个半音'],
     4: ['大三度', '比小三度宽一个半音'],
@@ -3534,42 +3569,58 @@ const INTERVAL_LABELS = {
 const intervalRound = {
     index: 0, score: 0, question: null, selected: null, heard: false,
     playing: false, failedPlayback: false, token: 0, sources: new Set(),
+    range: null,
 };
+
+function syncIntervalRange() {
+    const range = readGameRange();
+    if (range.key === intervalRound.range?.key) return false;
+    stopInterval();
+    Object.assign(intervalRound, {
+        range, index: 0, score: 0, question: null, selected: null, heard: false, failedPlayback: false,
+    });
+    return true;
+}
 
 function intervalNoteNames({ notes: [first, second], distance }) {
     const direction = second > first ? 1 : -1;
-    const degree = INTERVAL_ROOTS.indexOf(first) + direction * INTERVAL_DEGREES[distance];
+    const firstName = gameNoteName(first);
+    const degree = 'CDEFGAB'.indexOf(firstName[0]) + direction * INTERVAL_DEGREES[distance];
     const rootIndex = (degree % 7 + 7) % 7;
-    const octaveOffset = Math.floor(degree / 7);
-    const natural = INTERVAL_ROOTS[rootIndex] + octaveOffset * 12;
-    const accidental = second < natural ? '♭' : second > natural ? '♯' : '';
-    return [ALL_NOTES[first - 21].name, `${'CDEFGAB'[rootIndex]}${accidental}${4 + octaveOffset}`];
+    const octave = Math.floor(first / 12) - 1 + Math.floor(degree / 7);
+    const delta = second - ((octave + 1) * 12 + NATURAL_SEMITONES[rootIndex]);
+    const accidental = delta < 0 ? '♭'.repeat(-delta) : '♯'.repeat(delta);
+    return [firstName.replace('#', '♯'), `${'CDEFGAB'[rootIndex]}${accidental}${octave}`];
 }
 
 function renderInterval() {
-    const { index, score, question, selected, heard, playing, failedPlayback } = intervalRound;
+    syncIntervalRange();
+    const { index, score, question, selected, heard, playing, failedPlayback, range } = intervalRound;
+    const canStart = range.valid && range.high - range.low >= 2;
     const answered = selected !== null;
     const complete = answered && index === INTERVAL_COUNT;
     document.getElementById('intervalProgress').textContent = `${index} / ${INTERVAL_COUNT}`;
     document.getElementById('intervalScore').textContent = score;
     const advance = document.getElementById('intervalAdvance');
-    advance.disabled = playing || (!!question && !answered);
+    advance.disabled = !canStart || playing || (!!question && !answered);
     advance.textContent = complete ? '再玩一轮' : question ? '下一题' : '开始挑战';
     document.getElementById('intervalReplay').disabled = !question || playing;
     const status = document.getElementById('intervalStatus');
-    if (!question) status.textContent = '准备好了吗？点「开始挑战」听第一组。';
+    if (!canStart) status.textContent = '请在「音感训练」把高音设为至少比低音高两个半音，才能提供两种音程选项。';
+    else if (!question) status.textContent = '准备好了吗？点「开始挑战」听第一组。';
     else if (playing) status.textContent = '正在播放两音，请先听完。';
     else if (failedPlayback) status.textContent = '音频未能播放。若页面提示「重试加载」，请先重试，再点「重听两音」。';
     else if (!heard) status.textContent = '播放已中断，点「重听两音」继续。';
     else if (complete) status.textContent = `挑战完成！五题答对 ${score} 题。`;
     else if (answered) status.textContent = '记住这个音程的感觉，准备好就继续。';
-    else status.textContent = '两个音相隔多远？点击答案，或按 1–4 作答。';
+    else status.textContent = `两个音相隔多远？点击答案，或按 1–${question.choices.length} 作答。`;
 
     document.getElementById('intervalOptions').hidden = !question;
     document.querySelectorAll('[data-interval-choice]').forEach((button, i) => {
         const choice = question?.choices[i];
+        button.hidden = !choice;
         button.querySelector('span').textContent = choice ? INTERVAL_LABELS[choice][0] : '';
-        button.disabled = !question || !heard || playing || answered;
+        button.disabled = !choice || !heard || playing || answered;
         button.classList.toggle('correct', answered && choice === question.distance);
         button.classList.toggle('incorrect', answered && choice === selected && choice !== question.distance);
     });
@@ -3596,6 +3647,11 @@ function stopInterval() {
 }
 
 async function listenToInterval() {
+    if (currentMode !== 'interval') return;
+    if (syncIntervalRange()) {
+        renderInterval();
+        return;
+    }
     if (!intervalRound.question || intervalRound.playing || currentMode !== 'interval') return;
     const token = ++intervalRound.token;
     intervalRound.playing = true;
@@ -3622,7 +3678,14 @@ async function listenToInterval() {
 }
 
 function advanceInterval() {
-    if (currentMode !== 'interval' || intervalRound.playing || (intervalRound.question && intervalRound.selected === null)) return;
+    if (currentMode !== 'interval') return;
+    syncIntervalRange();
+    const { low, high, valid } = intervalRound.range;
+    if (!valid || high - low < 2) {
+        renderInterval();
+        return;
+    }
+    if (intervalRound.playing || (intervalRound.question && intervalRound.selected === null)) return;
     const previous = intervalRound.question?.distance;
     if (intervalRound.index === INTERVAL_COUNT) {
         intervalRound.index = 0;
@@ -3630,11 +3693,18 @@ function advanceInterval() {
     }
     ++intervalRound.index;
     const advanced = intervalRound.index > 3;
-    const choices = advanced ? INTERVAL_ADVANCED : INTERVAL_EASY;
+    const choices = (advanced ? INTERVAL_ADVANCED : INTERVAL_EASY)
+        .filter(distance => distance <= high - low).slice(0, 4).sort((a, b) => a - b);
     const targets = choices.filter(distance => distance !== previous);
     const distance = targets[Math.floor(Math.random() * targets.length)];
-    const first = INTERVAL_ROOTS[Math.floor(Math.random() * INTERVAL_ROOTS.length)];
+    const rootDraw = Math.random();
     const direction = advanced && Math.random() < 0.5 ? -1 : 1;
+    const minFirst = direction === 1 ? low : low + distance;
+    const maxFirst = direction === 1 ? high - distance : high;
+    const starts = Array.from({ length: maxFirst - minFirst + 1 }, (_, i) => minFirst + i);
+    const naturalStarts = starts.filter(midi => NATURAL_SEMITONES.includes(midi % 12));
+    const roots = naturalStarts.length ? naturalStarts : starts;
+    const first = roots[Math.floor(rootDraw * roots.length)];
     intervalRound.question = { choices, distance, notes: [first, first + direction * distance] };
     intervalRound.selected = null;
     intervalRound.heard = false;
@@ -3642,7 +3712,9 @@ function advanceInterval() {
 }
 
 function answerInterval(index) {
-    if (currentMode !== 'interval' || !intervalRound.question || !intervalRound.heard || intervalRound.playing ||
+    if (currentMode !== 'interval') return;
+    if (syncIntervalRange()) renderInterval();
+    if (!intervalRound.question || !intervalRound.heard || intervalRound.playing ||
             intervalRound.selected !== null) return;
     const selected = intervalRound.question.choices[index];
     if (selected === undefined) return;
@@ -3667,6 +3739,7 @@ async function init() {
     setupMelody();
     setupInterval();
     populateSelects();
+    setupGameRangeListeners();
     pianoKeys = buildPiano();
     updateRangeHighlight();
     setupOctaveRefModeListener();

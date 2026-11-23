@@ -6,7 +6,7 @@ const { join } = require('node:path');
 const vm = require('node:vm');
 
 const melodyScript = readFileSync(join(__dirname, '../templates/index.html'), 'utf8')
-    .split('// ========== 听音接龙 ==========')[1]
+    .split('// ========== 小游戏音域 ==========')[1]
     .split('// ========== 初始化 ==========')[0];
 
 function harness() {
@@ -15,11 +15,19 @@ function harness() {
         addEventListener(name, handler) { this[name] = handler; }
     });
     const nodes = {};
-    const keys = Array.from({ length: 5 }, (_, i) => ({ ...element(), dataset: { melodyNote: i } }));
+    const keys = Array.from({ length: 5 }, (_, i) => {
+        const label = element();
+        return { ...element(), dataset: { melodyNote: i }, label, querySelector: () => label };
+    });
     const timers = [], saved = {}, played = [];
     const context = vm.createContext({
         document: { getElementById: id => nodes[id] ??= element(), querySelectorAll: () => keys, createElement: element },
         currentMode: 'melody',
+        lowNoteIndex: 39, highNoteIndex: 60,
+        ALL_NOTES: Array.from({ length: 88 }, (_, i) => {
+            const midi = i + 21;
+            return { midi, name: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][midi % 12] + (Math.floor(midi / 12) - 1) };
+        }),
         VELOCITY_LAYERS: ['mf'],
         localStorage: { getItem: key => saved[key] ?? null, setItem: (key, value) => { saved[key] = value; } },
         playNote(midi) {
@@ -89,4 +97,30 @@ test('melody grows from three to eight notes and remembers best after restart', 
     assert.equal(h.run('melodyRound.score'), 0);
     assert.equal(h.run('melodyRound.best'), 6);
     assert.equal(h.run('melodyRound.sequence.length'), 3);
+});
+
+test('melody relabels keys, rejects unavailable shortcuts, and invalidates playing rounds after range edits', async () => {
+    const h = harness();
+    h.run("melodyRound.best = 3; advanceMelody()");
+    const oldSource = h.played.at(-1).source;
+    h.run('lowNoteIndex = 0; highNoteIndex = 2; renderMelody()');
+    await h.drain();
+    assert.ok(oldSource.stopped);
+    assert.equal(h.run('melodyRound.sequence.length'), 0);
+    assert.equal(h.run('melodyRound.best'), 3);
+    assert.ok(h.nodes.melodyReplay.disabled);
+    assert.deepEqual(h.keys.filter(k => !k.hidden).map(k => k.label.textContent), ['A0', 'A#0', 'B0']);
+    const before = h.played.length;
+    h.run('chooseMelodyNote(4); listenToMelody();');
+    await h.drain();
+    assert.equal(h.played.length, before);
+    h.run('advanceMelody()');
+    await h.drain();
+    assert.equal(h.played.length - before, 3);
+    assert.ok(h.played.slice(before).every(n => n.midi >= 21 && n.midi <= 23));
+    h.run('highNoteIndex = 1; renderMelody(); advanceMelody();');
+    assert.ok(h.nodes.melodyAdvance.disabled);
+    assert.match(h.nodes.melodyStatus.textContent, /至少.*两个半音/);
+    h.run('lowNoteIndex = 2; renderMelody()');
+    assert.ok(h.nodes.melodyAdvance.disabled);
 });
