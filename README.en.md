@@ -20,12 +20,6 @@ No installation needed — open and play (static build on GitHub Pages):
 
 ![Ear-training interface and mini-games menu](docs/screenshot-desktop-practice.jpg)
 
-### Free Play: Expanded keyboard
-
-![Expanded piano keyboard in a landscape viewport](docs/screenshot-mobile-landscape-freeplay.jpg)
-
-The expanded keyboard is shown in Chrome's simulated phone landscape viewport.
-
 ## ✨ Features
 
 Ear Training and Free Play are in the main navigation; Pitch Direction, Tuning, Melody Memory, and Interval Challenge are listed directly in the ear-training mini-games menu. The app includes live stats, progress curves, record export/import, and mobile support. Backups include the Melody Memory best round count. Importing a backup without that field preserves the best score on the current device.
@@ -217,8 +211,7 @@ piano-ear-trainer/
 ├── docs/                   # GitHub Pages / EdgeOne static build (samples + screenshots)
 │   ├── index.html          # [generated] built from templates by build-docs.js
 │   ├── samples/            # audio samples for the static site
-│   ├── screenshot-desktop-practice.jpg         # Practice and exercise menu
-│   └── screenshot-mobile-landscape-freeplay.jpg # Expanded keyboard
+│   └── screenshot-desktop-practice.jpg         # Practice and exercise menu
 ├── static/
 │   └── samples/            # [generated] preprocessed samples for local version
 ├── SalamanderGrandPianoV3+20161209_48khz24bit.tar  # [LFS] raw sample pack

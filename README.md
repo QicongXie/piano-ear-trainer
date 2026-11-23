@@ -19,12 +19,6 @@
 
 ![听辨练习界面与练耳小游戏菜单](docs/screenshot-desktop-practice.jpg)
 
-### 自由弹奏 · 展开琴键
-
-![横屏下展开的钢琴键盘](docs/screenshot-mobile-landscape-freeplay.jpg)
-
-上图为 Chrome 模拟的手机横屏视口。
-
 ## ✨ 功能总览
 
 主栏保留音感训练和自由弹奏；偏差方向、调准练习、听音接龙和音程挑战都从「练耳小游戏」直接进入。工具配套统计、进步曲线、记录导出/导入与移动端适配。
@@ -218,8 +212,7 @@ piano-ear-trainer/
 ├── docs/                   # GitHub Pages / EdgeOne 静态页面（含采样与截图）
 │   ├── index.html          # [生成] 由 build-docs.js 从 templates 生成
 │   ├── samples/            # 供静态站使用的音频采样
-│   ├── screenshot-desktop-practice.jpg         # 练习与模式入口
-│   └── screenshot-mobile-landscape-freeplay.jpg # 放大琴键
+│   └── screenshot-desktop-practice.jpg         # 练习与模式入口
 ├── static/
 │   └── samples/            # [生成] 本地预处理后的音频采样
 ├── SalamanderGrandPianoV3+20161209_48khz24bit.tar  # [LFS] 原始采样包
