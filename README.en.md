@@ -28,9 +28,9 @@ The expanded keyboard is shown in Chrome's simulated phone landscape viewport.
 
 ## ✨ Features
 
-Ear Training and Free Play are in the main navigation; Pitch Direction, Tuning, Melody Memory, and Interval Challenge are listed directly in the ear-training mini-games menu. The app includes live stats, progress curves, record export/import, and mobile support. Backups include the Melody Memory best round count. Importing an older backup without that field preserves the existing best.
+Ear Training and Free Play are in the main navigation; Pitch Direction, Tuning, Melody Memory, and Interval Challenge are listed directly in the ear-training mini-games menu. The app includes live stats, progress curves, record export/import, and mobile support. Backups include the Melody Memory best round count. Importing a backup without that field preserves the best score on the current device.
 
-Pitch Direction and Tuning track accuracy, streaks, and attempts separately and can be reset independently. Older combined totals stay archived; each exercise keeps its existing curve and best result.
+Pitch Direction and Tuning track accuracy, streaks, and attempts separately and can be reset independently. Combined totals are archived separately and do not count toward either exercise. Each exercise keeps its own curve and best result.
 
 The home-screen range applies to every exercise and mini-game, but not Free Play. If an exercise cannot fit in the selected range, it asks you to widen the range instead of playing outside it.
 
@@ -188,7 +188,7 @@ cp scripts/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre
 
 ### Deploy to GitHub Pages
 
-`docs/` already contains the generated page and samples. In **Settings → Pages → Deploy from a branch**, choose the publishing branch and `/docs` folder (the upstream repository uses `main`). No additional build is needed; local changes do not appear online until that branch deploys.
+`docs/` already contains the generated page and samples. In **Settings → Pages → Deploy from a branch**, choose the publishing branch and `/docs` folder (the upstream repository uses `main`). GitHub Pages serves the contents of the selected branch’s `/docs` folder without an additional build.
 
 ### Deploy to EdgeOne Pages
 
@@ -217,8 +217,8 @@ piano-ear-trainer/
 ├── docs/                   # GitHub Pages / EdgeOne static build (samples + screenshots)
 │   ├── index.html          # [generated] built from templates by build-docs.js
 │   ├── samples/            # audio samples for the static site
-│   ├── screenshot-desktop-practice.png         # Practice and exercise menu
-│   └── screenshot-mobile-landscape-freeplay.png # Expanded keyboard
+│   ├── screenshot-desktop-practice.jpg         # Practice and exercise menu
+│   └── screenshot-mobile-landscape-freeplay.jpg # Expanded keyboard
 ├── static/
 │   └── samples/            # [generated] preprocessed samples for local version
 ├── SalamanderGrandPianoV3+20161209_48khz24bit.tar  # [LFS] raw sample pack

@@ -9,7 +9,7 @@
 
 ## 🌐 在线体验
 
-无需安装，打开即用（GitHub Pages 静态版）：
+无需安装，打开即用（GitHub Pages）：
 
 **👉 https://qicongxie.github.io/piano-ear-trainer/**
 
@@ -29,7 +29,7 @@
 
 主栏保留音感训练和自由弹奏；偏差方向、调准练习、听音接龙和音程挑战都从「练耳小游戏」直接进入。工具配套统计、进步曲线、记录导出/导入与移动端适配。
 
-偏差方向与调准练习分别统计正确率、连对和总题数，可独立重置。旧版合并题数只归档，不分摊到任一练习；能明确归属的旧曲线和最佳成绩仍留在各自练习中。
+偏差方向与调准练习分别统计正确率、连对和总题数，可独立重置。合并记录只作归档，不计入任一练习；曲线和最佳成绩按练习保存。
 
 首页的低音、高音同时约束所有练习与小游戏。音域太窄时，有的练习会请你放宽范围，而不是播放越界音；自由弹奏保留全部琴键。
 
@@ -73,7 +73,7 @@
 ### 🧰 通用能力
 
 - **真实钢琴音色**：基于 Salamander Grand Piano V3 高品质采样，按力度分层、按需懒加载。
-- **记录持久化 + 导出/导入**：设置、练习统计、薄弱音分布、进步曲线和听音接龙最佳轮数自动存于浏览器，可用 JSON 备份迁移到另一台电脑。导入不含轮数的旧备份会保留现有接龙纪录。
+- **记录持久化 + 导出/导入**：设置、练习统计、薄弱音分布、进步曲线和听音接龙最佳轮数自动存于浏览器，可用 JSON 备份迁移到另一台电脑。导入不含接龙最佳轮数的备份时，保留本机纪录。
 - **移动端适配**：响应式布局，手机上同样可用（钢琴可横向滑动查看）。
 - **键盘快捷键**：音感和音准模式用 `A` 出题，其余模式见下表。
 
@@ -90,7 +90,7 @@
 
 ## 🚀 本地部署
 
-### 本地预览 GitHub Pages 版
+### 本地预览静态页面
 
 在仓库根目录运行以下命令，然后打开 [http://127.0.0.1:7860/](http://127.0.0.1:7860/)：
 
@@ -98,11 +98,11 @@
 python3 -m http.server 7860 --bind 127.0.0.1 --directory docs
 ```
 
-GitHub Pages 使用的就是 `docs/` 里这套前端和 MP3 采样，不需要 Flask 或转换音频。在线版和本地预览分别保存于各自的浏览器站点；切换地址、端口、浏览器或设备时，请用 JSON 导出／导入搬迁记录。
+GitHub Pages 使用的就是 `docs/` 里这套前端和 MP3 采样，不需要 Flask 或转换音频。在线站点和本地预览分别保存于各自的浏览器站点；切换地址、端口、浏览器或设备时，请用 JSON 导出／导入搬迁记录。
 
-### Flask 本地版
+### 使用 Flask 本地运行
 
-需要自定义采样或启动参数时，再使用 Flask 版：
+需要自定义采样或启动参数时，使用 Flask：
 
 #### 依赖要求
 
@@ -169,9 +169,9 @@ tail -f app.log
 
 ## 🛠️ 开发与静态部署
 
-**前端只维护 `templates/index.html`**（Flask 模板版）。GitHub Pages / EdgeOne 使用的 `docs/index.html` 是它的**静态产物**，由 `build-docs.js` 自动生成（把配置占位符替换为写死值、把采样改为相对路径），**请勿手动编辑 `docs/index.html`**。
+**前端只维护 `templates/index.html`**（Flask 模板）。GitHub Pages / EdgeOne 使用的 `docs/index.html` 是它的**静态产物**，由 `build-docs.js` 自动生成（把配置占位符替换为写死值、把采样改为相对路径），**请勿手动编辑 `docs/index.html`**。
 
-### 生成静态版
+### 生成静态页面
 
 ```bash
 node build-docs.js   # 从 templates/index.html 生成 docs/index.html
@@ -207,21 +207,21 @@ cp scripts/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre
 piano-ear-trainer/
 ├── app.py                  # Flask 后端主程序
 ├── prepare_samples.py      # 钢琴采样预处理脚本
-├── build-docs.js           # 从 templates 生成 docs 静态版的构建脚本
+├── build-docs.js           # 从 templates 生成 docs 静态页面的构建脚本
 ├── run.sh                  # 服务启动脚本（nohup 后台运行）
 ├── setup.sh                # 一键整备脚本（LFS 拉取 + 解压 + 预处理）
 ├── scripts/
 │   └── git-hooks/
 │       └── pre-commit      # 提交时自动重建 docs/index.html 的 git hook
 ├── templates/
-│   └── index.html          # 前端页面（本地 Flask 版，唯一需手改的前端源）
-├── docs/                   # GitHub Pages / EdgeOne 静态版（含采样与截图）
+│   └── index.html          # 前端页面（Flask 模板，唯一需手改的前端源）
+├── docs/                   # GitHub Pages / EdgeOne 静态页面（含采样与截图）
 │   ├── index.html          # [生成] 由 build-docs.js 从 templates 生成
 │   ├── samples/            # 供静态站使用的音频采样
-│   ├── screenshot-desktop-practice.png         # 练习与模式入口
-│   └── screenshot-mobile-landscape-freeplay.png # 放大琴键
+│   ├── screenshot-desktop-practice.jpg         # 练习与模式入口
+│   └── screenshot-mobile-landscape-freeplay.jpg # 放大琴键
 ├── static/
-│   └── samples/            # [生成] 本地版预处理后的音频采样
+│   └── samples/            # [生成] 本地预处理后的音频采样
 ├── SalamanderGrandPianoV3+20161209_48khz24bit.tar  # [LFS] 原始采样包
 ├── README.md               # 中文说明（默认）
 ├── README.en.md            # 英文说明
