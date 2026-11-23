@@ -108,7 +108,7 @@ test('silent pitch action leaves the previous round unopened and does not schedu
     await h.run('loadSamples()');
     h.run('pickWeightedPitchNote = () => 39; newPitchQuestion()');
     assert.equal(h.run('pitchQuestionActive'), false);
-    assert.equal(h.run('pitchTotal'), 0);
+    assert.equal(h.run('pitchCounters.direction.total'), 0);
     assert.equal(h.run('pitchStimulusTimer'), null);
     assert.match(h.nodes.get('pitchFeedback').textContent, /没有播放音准练习/);
 });

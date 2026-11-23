@@ -7,6 +7,9 @@
 
 A web-based piano ear-training tool built on the real Salamander Grand Piano samples. Beyond regular **single-note ear training**, it features dedicated **intonation training** — learning to hear and tune the microtones that fall *between* the piano keys. This is especially useful for players of fretless / continuous-pitch instruments such as violin or erhu who need to polish their intonation.
 
+
+Pitch direction and tuning have separate accuracy, streak, attempt counts, and reset controls. Combined totals from older versions are archived without guessing how to divide them; each exercise keeps its own existing curve and best result.
+
 ## 🌐 Live Demo
 
 No installation needed — open and play (static build on GitHub Pages):

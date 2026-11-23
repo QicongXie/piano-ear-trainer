@@ -991,6 +991,8 @@
                 </div>
             </div>
 
+            <p id="pitchLegacyArchive" class="pitch-tuning-hint" hidden></p>
+
             <div class="pitch-block">
                 <h3 id="pitchCurveTitle" style="font-size:0.9em;color:#888;margin-bottom:8px;">📉 听辨阈值曲线（数值越低越好，单位：音分）</h3>
                 <canvas id="pitchCurveCanvas"></canvas>
@@ -1154,7 +1156,9 @@ let pitchBaseMidi = null;         // 当前基准音 MIDI
 let pitchTargetCents = 0;         // 目标偏移（含符号；拍频模式 0 表示对齐）
 let pitchQuestionActive = false;  // 是否有活动题
 let pitchScored = false;          // 当前题是否已计分
-let pitchCorrect = 0, pitchWrong = 0, pitchTotal = 0, pitchStreak = 0;
+function emptyPitchCounters() { return { correct: 0, wrong: 0, total: 0, streak: 0 }; }
+const pitchCounters = { direction: emptyPitchCounters(), tuning: emptyPitchCounters() };
+let pitchLegacyCombined = null; // 旧版两种练习共用的统计，只归档，不混入任何一个模式。
 let pitchMinJnd = null;           // 历史最小可辨（音分，偏差方向模式）
 let pitchJndHistory = [];         // 每题被测难度序列，用于阈值曲线（偏差方向模式）
 let lastPitchQuestionAt = 0;      // 出题防抖时间戳
@@ -2726,13 +2730,15 @@ function getProgressState() {
     if (pitchJndHistory.length > 500) pitchJndHistory = pitchJndHistory.slice(-500);
     if (pitchResidualHistory.length > 500) pitchResidualHistory = pitchResidualHistory.slice(-500);
     return {
+        version: 2,
         settings: getSettingsSnapshot(),
         stats: { correctCount, wrongCount, totalCount, streakCount, maxStreak },
         noteStats,
         resultHistory,
         pitch: {
-            correct: pitchCorrect, wrong: pitchWrong, total: pitchTotal,
-            streak: pitchStreak, minJnd: pitchMinJnd,
+            direction: { ...pitchCounters.direction }, tuning: { ...pitchCounters.tuning },
+            legacyCombined: pitchLegacyCombined,
+            minJnd: pitchMinJnd,
             ladderIdx: pitchLadderIdx, jndHistory: pitchJndHistory,
             subMode: pitchSubMode,
             bestResidual: pitchBestResidual, residualHistory: pitchResidualHistory,
@@ -2849,9 +2855,10 @@ function newPitchQuestion() {
         return;
     }
 
-    // 跳过计错：上一题已出但未作答时，按答错计入，避免无限换题逃避
+    // 跳过只计入当前练习。
+    const counters = pitchCounters[pitchSubMode];
     if (pitchQuestionActive && !pitchScored) {
-        pitchTotal++; pitchWrong++; pitchStreak = 0;
+        counters.total++; counters.wrong++; counters.streak = 0;
         if (pitchSubMode === 'direction') {
             pitchJndHistory.push(PITCH_CENTS_LADDER[pitchLadderIdx]);
             pitchLadderIdx = Math.max(0, pitchLadderIdx - 1);
@@ -3039,13 +3046,14 @@ function confirmTuning() {
     if (!pitchQuestionActive || pitchScored || pitchSubMode !== 'tuning') return;
     pitchScored = true;
     const residual = Math.abs(pitchTuneCents);
-    pitchTotal++;
+    const counters = pitchCounters.tuning;
+    counters.total++;
     pitchResidualHistory.push(residual);
     if (pitchBestResidual == null || residual < pitchBestResidual) pitchBestResidual = residual;
 
     const passed = residual <= TUNE_PASS;
-    if (passed) { pitchCorrect++; pitchStreak++; }
-    else { pitchWrong++; pitchStreak = 0; }
+    if (passed) { counters.correct++; counters.streak++; }
+    else { counters.wrong++; counters.streak = 0; }
     recordPitchNote(pitchBaseName, passed, residual);
 
     const dirWord = pitchTuneCents > 0.5 ? '仍偏高' : (pitchTuneCents < -0.5 ? '仍偏低' : '几乎正中');
@@ -3064,13 +3072,14 @@ function confirmTuning() {
 function finishPitchAnswer(correct, detail) {
     pitchScored = true;
     const stepCents = PITCH_CENTS_LADDER[pitchLadderIdx];
-    pitchTotal++;
+    const counters = pitchCounters.direction;
+    counters.total++;
     pitchJndHistory.push(stepCents);
 
     const gateIdx = PITCH_CENTS_LADDER.indexOf(5);   // 5 音分「门槛」档位
     const lastIdx = PITCH_CENTS_LADDER.length - 1;
     if (correct) {
-        pitchCorrect++; pitchStreak++;
+        counters.correct++; counters.streak++;
         if (pitchMinJnd == null || stepCents < pitchMinJnd) pitchMinJnd = stepCents;
 
         if (!pitchReversed && pitchLadderIdx < gateIdx) {
@@ -3091,7 +3100,7 @@ function finishPitchAnswer(correct, detail) {
             }
         }
     } else {
-        pitchWrong++; pitchStreak = 0;
+        counters.wrong++; counters.streak = 0;
         pitchReversed = true;   // 首次答错 → 进入细搜
         pitchConsecCorrect = 0;
         pitchLadderIdx = Math.max(0, pitchLadderIdx - 1);   // 答错 → 降 1 档
@@ -3110,9 +3119,18 @@ function finishPitchAnswer(correct, detail) {
 
 function updatePitchStats() {
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    set('pitchStreak', pitchStreak);
-    set('pitchTotal', pitchTotal);
-    set('pitchAccuracy', pitchTotal > 0 ? Math.round(pitchCorrect / pitchTotal * 100) + '%' : '-');
+    const { correct, total, streak } = pitchCounters[pitchSubMode];
+    set('pitchStreak', streak);
+    set('pitchTotal', total);
+    set('pitchAccuracy', total > 0 ? Math.round(correct / total * 100) + '%' : '-');
+    const archive = document.getElementById('pitchLegacyArchive');
+    if (archive) {
+        archive.hidden = !pitchLegacyCombined;
+        if (pitchLegacyCombined) {
+            const { total, correct, wrong, streak } = pitchLegacyCombined;
+            archive.textContent = `旧版合并记录（仅归档，不计入本练习）：共 ${total ?? '–'} 题 · 对 ${correct ?? '–'} · 错 ${wrong ?? '–'} · 迁移时连对 ${streak ?? '–'}。旧版曲线和最佳成绩仍保留在各自练习中。`;
+        }
+    }
     if (pitchSubMode === 'direction') {
         set('pitchStatLabel1', '当前难度');
         set('pitchStatVal1', PITCH_CENTS_LADDER[pitchLadderIdx] + ' 音分');
@@ -3127,12 +3145,22 @@ function updatePitchStats() {
 }
 
 function resetPitchStats() {
-    if (!confirm('确定要清空音准训练的统计（正确率、连对、成绩、难度进度和曲线）吗？')) return;
-    pitchCorrect = 0; pitchWrong = 0; pitchTotal = 0; pitchStreak = 0;
-    pitchMinJnd = null; pitchLadderIdx = 0; pitchConsecCorrect = 0; pitchReversed = false;
-    pitchJndHistory = [];
-    pitchBestResidual = null; pitchResidualHistory = [];
-    pitchNoteStats = {};
+    const isDirection = pitchSubMode === 'direction';
+    const label = isDirection ? '偏差方向' : '调准练习';
+    if (!confirm(`确定要清空「${label}」的统计、练习曲线和成绩吗？另一个练习和旧版归档不会受影响。`)) return;
+    pitchCounters[pitchSubMode] = emptyPitchCounters();
+    if (isDirection) {
+        pitchMinJnd = null; pitchLadderIdx = 0; pitchConsecCorrect = 0; pitchReversed = false;
+        pitchJndHistory = [];
+    } else {
+        pitchBestResidual = null;
+        pitchResidualHistory = [];
+    }
+    for (const [name, st] of Object.entries(pitchNoteStats)) {
+        if (isDirection) { st.dirN = 0; st.dirWrong = 0; }
+        else { st.tuneN = 0; st.tuneResid = 0; }
+        if (!st.dirN && !st.tuneN) delete pitchNoteStats[name];
+    }
     resetPitchRound();
     updatePitchStats();
     drawPitchCurve();
@@ -3202,6 +3230,27 @@ function drawPitchCurve() {
     }
 }
 
+// 旧版的命中率和连对混合了两种练习，不能从已截断的曲线反推。
+function restorePitchProgress(p) {
+    const withDefaults = counters => ({ ...emptyPitchCounters(), ...counters });
+    pitchCounters.direction = withDefaults(p.direction);
+    pitchCounters.tuning = withDefaults(p.tuning);
+    const onlyCounters = counters => Object.fromEntries(['correct', 'wrong', 'total', 'streak']
+        .filter(key => Object.hasOwn(counters, key)).map(key => [key, counters[key]]));
+    const oldCounts = onlyCounters(p);
+    pitchLegacyCombined = p.legacyCombined
+        ? onlyCounters(p.legacyCombined)
+        : Object.values(oldCounts).some(n => n > 0) ? oldCounts : null;
+    pitchMinJnd = p.minJnd ?? null;
+    pitchLadderIdx = p.ladderIdx ?? 0;
+    pitchJndHistory = p.jndHistory ?? [];
+    if (p.subMode) pitchSubMode = p.subMode;
+    pitchBestResidual = p.bestResidual ?? null;
+    pitchResidualHistory = p.residualHistory ?? [];
+    pitchReversed = !!p.reversed;
+    pitchNoteStats = p.noteStats ?? {};
+}
+
 // ===================== 练习记录 导出 / 导入 =====================
 
 const PROGRESS_KEYS = ['settings', 'stats', 'noteStats', 'resultHistory', 'pitch'];
@@ -3220,7 +3269,8 @@ function parseProgress(raw) {
     const invalid = () => { throw new Error('Invalid practice data'); };
 
     // 保留旧版中不存在的可选字段，但拒绝无关 JSON、数组和无法读入的字段类型。
-    if (!isRecord(obj) || !PROGRESS_KEYS.some(key => Object.hasOwn(obj, key))) invalid();
+    if (!isRecord(obj) || !PROGRESS_KEYS.some(key => Object.hasOwn(obj, key)) ||
+        (obj.version !== undefined && obj.version !== 1 && obj.version !== 2)) invalid();
     if (obj.settings !== undefined) {
         if (!isRecord(obj.settings) || !SETTING_IDS.every(id => {
             const value = obj.settings[id];
@@ -3235,7 +3285,14 @@ function parseProgress(raw) {
     if (obj.resultHistory !== undefined && !history(obj.resultHistory, v => v === 0 || v === 1)) invalid();
     if (obj.pitch !== undefined) {
         const p = obj.pitch;
+        const validCounters = x => isRecord(x) && ['correct', 'wrong', 'total', 'streak'].every(key => count(x[key])) &&
+            x.correct + x.wrong === x.total && x.streak <= x.correct;
         if (!isRecord(p) || !fields(p, ['correct', 'wrong', 'total', 'streak'], count) ||
+            ((p.direction !== undefined || p.tuning !== undefined) &&
+                (obj.version !== 2 || !validCounters(p.direction) || !validCounters(p.tuning))) ||
+            (p.legacyCombined !== undefined && p.legacyCombined !== null &&
+                (obj.version !== 2 || !isRecord(p.legacyCombined) ||
+                    !fields(p.legacyCombined, ['correct', 'wrong', 'total', 'streak'], count))) ||
             !fields(p, ['minJnd', 'bestResidual'], v => v === null || cents(v)) ||
             (p.ladderIdx !== undefined && (!count(p.ladderIdx) || p.ladderIdx >= PITCH_CENTS_LADDER.length)) ||
             (p.subMode !== undefined && !['direction', 'tuning'].includes(p.subMode)) ||
@@ -3757,21 +3814,7 @@ async function init() {
     }
     if (saved.noteStats) noteStats = saved.noteStats;
     if (Array.isArray(saved.resultHistory)) resultHistory = saved.resultHistory;
-    // 恢复音准训练数据
-    if (saved.pitch) {
-        pitchCorrect = saved.pitch.correct || 0;
-        pitchWrong = saved.pitch.wrong || 0;
-        pitchTotal = saved.pitch.total || 0;
-        pitchStreak = saved.pitch.streak || 0;
-        pitchMinJnd = (saved.pitch.minJnd != null) ? saved.pitch.minJnd : null;
-        pitchLadderIdx = saved.pitch.ladderIdx || 0;
-        if (Array.isArray(saved.pitch.jndHistory)) pitchJndHistory = saved.pitch.jndHistory;
-        if (saved.pitch.subMode) pitchSubMode = saved.pitch.subMode;
-        pitchBestResidual = (saved.pitch.bestResidual != null) ? saved.pitch.bestResidual : null;
-        if (Array.isArray(saved.pitch.residualHistory)) pitchResidualHistory = saved.pitch.residualHistory;
-        pitchReversed = !!saved.pitch.reversed;
-        if (saved.pitch.noteStats) pitchNoteStats = saved.pitch.noteStats;
-    }
+    if (saved.pitch) restorePitchProgress(saved.pitch);
     bindSettingsPersistence();
     updateScore();
     drawCurve();

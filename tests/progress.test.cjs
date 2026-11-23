@@ -119,3 +119,65 @@ test('exports a valid live backup even when storage is disabled', () => {
     assert.equal(writes, 0);
     assert.equal(h.run(`parseProgress(${JSON.stringify(JSON.stringify(exported))}).stats.correctCount`), 7);
 });
+
+test('legacy combined scores archive once, while attributable mode histories survive', () => {
+    const h = harness(JSON.stringify({ pitch: {
+        correct: 7, wrong: 4, total: 11, streak: 2,
+        minJnd: 10, ladderIdx: 7, jndHistory: [50, 30], bestResidual: 1.5, residualHistory: [4, 1.5],
+        noteStats: { A4: { dirN: 6, dirWrong: 2, tuneN: 4, tuneResid: 16 } },
+    } }));
+    h.settings.set('pitchLegacyArchive', { hidden: true });
+    h.run('restorePitchProgress(loadState().pitch); updatePitchStats(); saveState()');
+    const { stored } = h.state();
+    assert.equal(stored.version, 2);
+    assert.deepEqual(stored.pitch.legacyCombined, { correct: 7, wrong: 4, total: 11, streak: 2 });
+    assert.deepEqual(stored.pitch.direction, { correct: 0, wrong: 0, total: 0, streak: 0 });
+    assert.deepEqual(stored.pitch.tuning, stored.pitch.direction);
+    assert.deepEqual(stored.pitch.jndHistory, [50, 30]);
+    assert.deepEqual(stored.pitch.residualHistory, [4, 1.5]);
+    assert.equal(stored.pitch.bestResidual, 1.5);
+    assert.equal(stored.pitch.ladderIdx, 7);
+    assert.equal(stored.pitch.noteStats.A4.tuneResid, 16);
+    assert.equal(h.settings.get('pitchLegacyArchive').hidden, false);
+    assert.match(h.settings.get('pitchLegacyArchive').textContent, /归档.*11 题/);
+
+    h.run('restorePitchProgress(loadState().pitch); saveState()');
+    assert.deepEqual(h.state().stored, stored);
+});
+
+test('actual direction and tuning answers update independent displays; local reset and restart do not cross modes', () => {
+    const h = harness();
+    for (const id of ['pitchAccuracy', 'pitchTotal', 'pitchStreak', 'pitchFeedback']) h.settings.set(id, {});
+    h.run(`
+        document.querySelectorAll = () => [];
+        drawPitchCurve = () => {};
+        pitchQuestionActive = true;
+        pitchTargetCents = 50;
+        pitchBaseName = 'A4';
+        answerPitchDirection('up');
+    `);
+    assert.equal(h.settings.get('pitchAccuracy').textContent, '100%');
+    h.run("pitchSubMode = 'tuning'; updatePitchStats()");
+    assert.equal(h.settings.get('pitchAccuracy').textContent, '-');
+    h.run("pitchQuestionActive = true; pitchScored = false; pitchTuneCents = 12; confirmTuning()");
+    assert.equal(h.settings.get('pitchAccuracy').textContent, '0%');
+    assert.equal(h.settings.get('pitchTotal').textContent, 1);
+    const prior = h.state().stored;
+    h.run("restorePitchProgress(loadState().pitch); resetPitchStats()");
+    const { pitch } = h.state().stored;
+    assert.deepEqual(pitch.direction, prior.pitch.direction);
+    assert.deepEqual(pitch.jndHistory, [50]);
+    assert.deepEqual(pitch.tuning, { correct: 0, wrong: 0, total: 0, streak: 0 });
+    assert.deepEqual(pitch.residualHistory, []);
+    assert.deepEqual(pitch.noteStats.A4, { dirN: 1, dirWrong: 0, tuneN: 0, tuneResid: 0 });
+    assert.equal(pitch.bestResidual, null);
+});
+
+test('unknown progress versions and impossible versioned pitch counters are rejected', () => {
+    const h = harness();
+    const direction = { correct: 3, wrong: 1, total: 2, streak: 3 };
+    const tuning = { correct: 0, wrong: 0, total: 0, streak: 0 };
+    h.import(JSON.stringify({ version: 2, pitch: { direction, tuning } }));
+    h.import(JSON.stringify({ version: 777, settings: {} }));
+    assert.equal(h.state().writes, 0);
+});
