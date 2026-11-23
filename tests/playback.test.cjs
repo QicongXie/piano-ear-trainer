@@ -101,26 +101,58 @@ test('pitch pair locks velocity, then stops queued/playing notes when leaving th
 
 test('freeplay releases a held key on blur and accepts that key again', () => {
     const h = makeHarness();
-    h.run("currentMode = 'freeplay'; freeplayNoteOn('KeyA')");
+    h.run("currentMode = 'freeplay'; freeplayNoteOn('KeyZ')");
     assert.equal(h.played.length, 1);
     h.listeners.get('window.blur')();
-    h.run("freeplayNoteOn('KeyA')");
+    h.run("freeplayNoteOn('KeyZ')");
     assert.equal(h.played.length, 2);
 });
 
-test('shifting the legacy keyboard octave releases held notes and keeps Z/X mapping', async () => {
+test('freeplay maps 34 distinct chromatic notes and supports holding keys on both rows', () => {
     const h = makeHarness();
-    h.run("currentMode = 'freeplay'; freeplayNoteOn('KeyA')");
-    const send = (code, modifiers = {}) => h.listeners.get('document.keydown')({
-        code, target: {}, preventDefault() {}, ...modifiers
-    });
-    send('KeyX', { metaKey: true });
-    assert.equal(h.run('freeplayOctave'), 4);
-    send('KeyX');
-    assert.equal(h.element('freeplayOctave').textContent, 5);
+    h.run("currentMode = 'freeplay'; Object.keys(KEYBOARD_MAP).forEach(freeplayNoteOn)");
+    assert.equal(h.played.length, 34);
+    assert.deepEqual(h.played.map(e => e.midi), Array.from({ length: 34 }, (_, i) => 60 + i));
+    assert.equal(h.run('Object.keys(activeKeySources).length'), 34);
+    h.listeners.get('document.keyup')({ code: 'KeyZ' });
+    assert.equal(h.run('Object.keys(activeKeySources).length'), 33);
+    assert.equal(h.run('activeKeySources.KeyQ.noteIdx'), 56);
+});
+
+test('changing octave releases held notes and old keyup cannot cut a new pitch', async () => {
+    const h = makeHarness();
+    h.run("currentMode = 'freeplay'; freeplayNoteOn('KeyZ'); freeplayNoteOn('KeyQ'); shiftFreeplayOctave(1)");
+    assert.equal(h.element('freeplayOctave').textContent, 'C5–A7');
     assert.equal(h.run('Object.keys(activeKeySources).length'), 0);
-    h.listeners.get('document.keyup')({ code: 'KeyA' });
-    h.run("freeplayNoteOn('KeyA')");
+    h.listeners.get('document.keyup')({ code: 'KeyZ' });
+    h.run("freeplayNoteOn('KeyZ')");
     await h.tick();
-    assert.deepEqual(h.played.map(e => [e.midi, e.stopped]), [[60, true], [72, false]]);
+    await h.tick();
+    assert.deepEqual(h.played.map(e => [e.midi, e.stopped]), [[60, true], [77, true], [72, false]]);
+});
+
+test('freeplay labels move with the bracket shortcut, stay within full octaves, and clear on mode exit', () => {
+    const h = makeHarness();
+    h.run("pianoKeys = ALL_NOTES.map(() => ({ dataset: {} })); switchMode('freeplay')");
+    assert.equal(h.run('pianoKeys[39].dataset.freeplayKey'), 'Z');
+    assert.equal(h.run('pianoKeys[51].dataset.freeplayKey'), ',');
+    assert.equal(h.run('pianoKeys[57].dataset.freeplayKey'), '2');
+    assert.equal(h.run('pianoKeys[72].dataset.freeplayKey'), 'P');
+    const send = (code, options = {}) => h.listeners.get('document.keydown')({
+        code, target: {}, preventDefault() {}, ...options,
+    });
+    send('BracketRight', { ctrlKey: true });
+    assert.equal(h.element('freeplayOctave').textContent, 'C4–A6');
+    send('BracketRight');
+    assert.equal(h.element('freeplayOctave').textContent, 'C5–A7');
+    assert.equal(h.run('pianoKeys[39].dataset.freeplayKey'), undefined);
+    assert.equal(h.run('pianoKeys[51].dataset.freeplayKey'), 'Z');
+    for (let i = 0; i < 8; i++) send('BracketRight');
+    assert.equal(h.element('freeplayOctave').textContent, 'C5–A7');
+    assert.equal(h.element('freeplayHigher').disabled, true);
+    for (let i = 0; i < 8; i++) send('BracketLeft');
+    assert.equal(h.element('freeplayOctave').textContent, 'C1–A3');
+    assert.equal(h.element('freeplayLower').disabled, true);
+    h.run("switchMode('training')");
+    assert.equal(h.run('pianoKeys.filter(k => k.dataset.freeplayKey).length'), 0);
 });

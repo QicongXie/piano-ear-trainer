@@ -21,7 +21,15 @@ No installation needed — open and play (static build on GitHub Pages):
 
 ## ✨ Features
 
-Three modes, backed by live stats, progress curves, record export/import, and mobile support.
+Ear Training and Free Play are in the main navigation; Intonation, Melody Memory, and Interval Challenge are in the ear-training mini-games menu. The app includes live stats, progress curves, record export/import, and mobile support.
+
+### 🎶 Melody Memory
+
+Open Melody Memory from the ear-training mini-games menu. Listen to a piano phrase, then reproduce it with five note buttons. Clear a round to add one note, starting at three and ending at eight. Replay as often as you like; your best round count is saved in this browser separately from your other practice stats.
+
+### 🎼 Interval Challenge
+
+Listen to two piano notes and identify their interval over five questions. The first three intervals ascend; the last two may descend. Replay any question and see the note names, semitone count, and an explanation after answering.
 
 ### 🎵 Ear Training (single-note recognition)
 
@@ -48,14 +56,14 @@ Detunes the real piano samples by exact **cents** (1 semitone = 100 cents) to tr
 
 ### 🎹 Free Play
 
-A virtual 88-key piano playable by mouse or computer keyboard, with octave switching.
+A virtual 88-key piano playable by mouse, touch, or computer keyboard. The computer keyboard covers 34 consecutive pitches (C4–A6 by default), so you can play chords across octaves without switching. Shift the entire range with `[` / `]` or the on-screen arrows. Mouse and touch can still play all 88 keys.
 
 ### 🧰 General
 
 - **Real piano timbre**: high-quality Salamander Grand Piano V3 samples, velocity-layered and lazy-loaded.
 - **Persistence + export/import**: all settings, stats, weak-note distribution and progress curves are saved in the browser; export to JSON and import on another computer to keep your targeted practice.
 - **Mobile-friendly**: responsive layout (the piano scrolls horizontally on phones).
-- **Keyboard shortcuts**: every mode uses `A` to generate a question, with `A/S/D/F` as the main keys (see below).
+- **Keyboard shortcuts**: press `A` for a new question in Ear Training or Intonation. See the other modes below.
 
 ## ⌨️ Keyboard Shortcuts
 
@@ -64,7 +72,9 @@ A virtual 88-key piano playable by mouse or computer keyboard, with octave switc
 | Ear Training | `A` new · `S` replay · `D` play reference · `F` reveal answer |
 | Intonation · Direction | `A` new · `S` replay · `D` higher · `F` lower |
 | Intonation · Tuning | `A` new · `S` tune down · `D` tune up · `F` confirm · `Z` replay reference · `X` preview adjusted · `C` play both |
-| Free Play | White keys `A S D F G H J K` → C D E F G A B C; black keys `W E T Y U`; `Z`/`X` change octave |
+| Free Play | Lower range: `Z X C V B N M , . /` (white), `S D G H J L ;` (black). Upper: `Q W E R T Y U I O P` (white), `2 3 4 6 7 9 0` (black). Shift range with `[` / `]`. |
+| Melody Memory | `1`–`5` play the corresponding note |
+| Interval Challenge | `1`–`4` select an answer |
 
 ## 🚀 Local Setup
 

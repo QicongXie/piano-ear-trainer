@@ -119,23 +119,26 @@
             margin-bottom: 20px;
             justify-content: center;
         }
-        .mode-tab {
+        .mode-tab, .games-menu > summary {
             padding: 12px 28px;
             border-radius: 12px;
             border: 2px solid rgba(255,255,255,0.1);
             background: rgba(255,255,255,0.03);
             color: #888;
+            font-family: inherit;
             font-size: 1em;
             font-weight: 600;
+            line-height: 1.2;
             cursor: pointer;
             transition: all 0.3s;
         }
-        .mode-tab.active {
+        .mode-tab.active, .games-menu > summary.active {
             border-color: #e94560;
             background: rgba(233,69,96,0.15);
             color: #e94560;
         }
-        .mode-tab:hover:not(.active) {
+        .mode-tab:hover:not(.active), .games-menu > summary:hover:not(.active),
+        .games-menu[open] > summary:not(.active) {
             border-color: rgba(255,255,255,0.3);
             color: #ccc;
         }
@@ -405,6 +408,18 @@
             color: #aaa;
             pointer-events: none;
         }
+        [data-freeplay-key]::after {
+            content: attr(data-freeplay-key);
+            position: absolute;
+            bottom: 19px;
+            padding: 1px 4px;
+            border-radius: 4px;
+            background: #24405a;
+            color: #fff;
+            font: 700 12px/1.35 monospace;
+            pointer-events: none;
+        }
+        .black-key[data-freeplay-key]::after { bottom: 7px; }
 
         /* 按键时显示的音名标签 */
         .note-name-label {
@@ -602,9 +617,12 @@
             h1 { font-size: 1.5em; }
             .subtitle { font-size: 0.82em; margin-bottom: 16px; }
 
-            /* 模式标签：占满一行、可换行、更紧凑 */
-            .mode-tabs { gap: 6px; flex-wrap: wrap; }
-            .mode-tab { flex: 1; min-width: 90px; padding: 10px 8px; font-size: 0.85em; text-align: center; }
+            /* 小屏导航：三组等宽，保持足够的触控高度。 */
+            .mode-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+            .mode-tab, .games-menu > summary {
+                box-sizing: border-box; min-width: 0; min-height: 44px;
+                padding: 8px 4px; font-size: 0.85em; text-align: center;
+            }
 
             .controls { padding: 14px; }
             .controls-row { gap: 10px; }
@@ -633,6 +651,70 @@
 
             .data-tools { flex-wrap: wrap; margin-top: 18px; }
         }
+        /* 听音接龙 */
+        .games-menu { position: relative; }
+        .games-menu > summary {
+            display: flex; justify-content: center; align-items: center; gap: 6px;
+            list-style: none; white-space: nowrap;
+        }
+        .games-menu > summary::-webkit-details-marker { display: none; }
+        .games-menu-caret { font-size: 0.75em; }
+        .games-menu[open] .games-menu-caret { transform: rotate(180deg); }
+        .games-menu-items {
+            position: absolute; top: calc(100% + 4px); right: 0; z-index: 5;
+            min-width: 148px; padding: 5px; border: 1px solid #50478a;
+            border-radius: 10px; background: #24203f; box-shadow: 0 8px 18px rgba(0,0,0,0.25);
+        }
+        .games-menu-items button {
+            width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px;
+            background: transparent; color: #ede6ff; white-space: nowrap;
+        }
+        .games-menu-items button:hover, .games-menu-items button[aria-current="true"] { background: #403568; }
+        @media (max-width: 600px) {
+            .games-menu-items button, .pitch-submode-btn { min-height: 44px; }
+        }
+        .melody-panel {
+            max-width: 720px; margin: 0 auto 20px; padding: clamp(16px, 4vw, 30px);
+            border-radius: 18px; border: 1px solid #50478a;
+            background: linear-gradient(145deg, #272348, #191c35);
+        }
+        .melody-panel h2 { color: #faf5ff; text-align: center; margin-bottom: 8px; }
+        .melody-intro { color: #d1c9e5; text-align: center; margin-bottom: 20px; line-height: 1.55; }
+        .melody-score, .melody-slots, .melody-actions, .melody-keys {
+            display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+        }
+        .melody-score { color: #dfd7f4; gap: 14px; font-size: 0.92em; }
+        .melody-score strong { color: #fff; }
+        .melody-slots { min-height: 40px; margin: 14px 0; }
+        .melody-slot {
+            display: grid; place-items: center; min-width: 31px; height: 34px; border-radius: 8px;
+            background: #343154; color: #d1c9e5; font-size: 0.9em; padding: 0 4px;
+        }
+        .melody-slot.done { background: #285a4e; color: #e8fff5; }
+        .melody-slot.missed { background: #74374f; color: #fff3f7; }
+        .melody-keys { margin: 14px 0 8px; gap: 5px; }
+        .melody-keys button {
+            flex: 1 1 0; max-width: 88px; min-width: 40px; padding: 7px 3px;
+            min-height: 66px; background: #faf5ff; color: #30264d;
+            border: 1px solid #cabde4; border-bottom: 4px solid #b5a7d2; border-radius: 7px;
+        }
+        .melody-keys button:not(:disabled):hover { background: #e5d9ff; }
+        .melody-keys button:disabled { opacity: 0.45; cursor: default; }
+        .melody-keys kbd { display: block; font-size: 0.76em; opacity: 0.75; margin-bottom: 3px; }
+        .melody-status { min-height: 3em; color: #fff; text-align: center; margin: 10px 0; }
+        .melody-panel button:focus-visible, .mode-tabs button:focus-visible,
+        .games-menu > summary:focus-visible { outline: 2px solid #f9d780; outline-offset: 3px; }
+        .interval-options {
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px; max-width: 420px; margin: 16px auto 0;
+        }
+        .interval-options[hidden] { display: none; }
+        .interval-options button { background: #383158; color: #fff; border: 1px solid #6a5d9a; min-height: 46px; }
+        .interval-options button:not(:disabled):hover { background: #504379; }
+        .interval-options button.correct { background: #285a4e; border-color: #6abb9d; opacity: 1; }
+        .interval-options button.incorrect { background: #74374f; border-color: #df86a5; opacity: 1; }
+        .interval-options kbd { margin-right: 6px; font-size: 0.8em; color: #ded4f2; }
+        #intervalFeedback { margin-top: 12px; color: #e3daf7; text-align: center; line-height: 1.55; }
     </style>
 </head>
 <body>
@@ -645,7 +727,7 @@
 
     <div class="container">
         <h1>🎹 钢琴音感与音准训练器</h1>
-        <p class="subtitle">单音听辨 · 音准训练（缝里的音）· 自由弹奏，用真实钢琴采样打磨你的耳朵</p>
+        <p class="subtitle">单音听辨 · 音准训练 · 自由弹奏 · 练耳小游戏，用真实钢琴采样打磨你的耳朵</p>
 
         <div class="sample-notice" id="sampleNotice" hidden>
             <p id="sampleNoticeText" role="status" aria-live="polite"></p>
@@ -653,17 +735,22 @@
         </div>
 
         <!-- 模式选择 -->
-        <div class="mode-tabs">
-            <button type="button" class="mode-tab active" data-mode="training" onclick="switchMode('training')">
+        <nav class="mode-tabs" aria-label="训练模式">
+            <button type="button" class="mode-tab active" data-mode="training" aria-current="true" onclick="switchMode('training')">
                 🎵 音感训练
-            </button>
-            <button type="button" class="mode-tab" data-mode="pitch" onclick="switchMode('pitch')">
-                🎯 音准训练
             </button>
             <button type="button" class="mode-tab" data-mode="freeplay" onclick="switchMode('freeplay')">
                 🎹 自由弹奏
             </button>
-        </div>
+            <details class="games-menu" id="gamesMenu">
+                <summary id="gamesMenuToggle">练耳小游戏 <span class="games-menu-caret" aria-hidden="true">▾</span></summary>
+                <div class="games-menu-items" id="gamesMenuItems">
+                    <button type="button" data-game-mode="pitch" aria-controls="pitchPanel">🎯 音准训练</button>
+                    <button type="button" data-game-mode="melody" aria-controls="melodyPanel">🎶 听音接龙</button>
+                    <button type="button" data-game-mode="interval" aria-controls="intervalPanel">🎼 音程挑战</button>
+                </div>
+            </details>
+        </nav>
 
         <!-- 控制面板 -->
         <div class="controls">
@@ -835,21 +922,18 @@
         <!-- 自由弹奏模式面板 -->
         <div id="freeplayPanel" style="display:none;">
             <div class="freeplay-controls">
-                <label>当前八度:</label>
-                <button class="secondary" onclick="shiftFreeplayOctave(-1)" style="padding:6px 12px;">◀</button>
-                <span class="octave-display" id="freeplayOctave">4</span>
-                <button class="secondary" onclick="shiftFreeplayOctave(1)" style="padding:6px 12px;">▶</button>
-                <span style="color:#666; margin-left:10px;">( 按 <kbd>Z</kbd> / <kbd>X</kbd> 切换八度 )</span>
+                <span>键盘音域：</span>
+                <button type="button" class="secondary" id="freeplayLower" aria-label="键盘音域降一个八度" onclick="shiftFreeplayOctave(-1)" style="padding:6px 12px;">◀</button>
+                <span class="octave-display" id="freeplayOctave" aria-live="polite">C4–A6</span>
+                <button type="button" class="secondary" id="freeplayHigher" aria-label="键盘音域升一个八度" onclick="shiftFreeplayOctave(1)" style="padding:6px 12px;">▶</button>
+                <span>按 <kbd>[</kbd> / <kbd>]</kbd> 下移 / 上移</span>
             </div>
             <div class="freeplay-hint">
                 <div class="title">🎹 自由弹奏模式</div>
                 <div class="desc">
-                    点击钢琴键或使用电脑键盘弹奏，尽情发挥吧！<br>
-                    白键: <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd>
-                    → C D E F G A B C<br>
-                    黑键: <kbd>W</kbd> <kbd>E</kbd> &nbsp; <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd>
-                    → C# D# &nbsp; F# G# A#<br>
-                    <kbd>Z</kbd> 降八度 &nbsp; <kbd>X</kbd> 升八度
+                    两排键可以同时按。琴键上的字母和数字对应电脑键盘；鼠标和触屏仍可弹全部 88 键。<br>
+                    <strong>下排（低音）</strong>：白键 <kbd>Z X C V B N M , . /</kbd> · 黑键 <kbd>S D G H J L ;</kbd><br>
+                    <strong>上排（高音）</strong>：白键 <kbd>Q W E R T Y U I O P</kbd> · 黑键 <kbd>2 3 4 6 7 9 0</kbd>
                 </div>
             </div>
         </div>
@@ -920,6 +1004,49 @@
                 <canvas id="pitchCurveCanvas"></canvas>
             </div>
         </div>
+
+        <section id="melodyPanel" class="melody-panel" aria-labelledby="melodyTitle" hidden>
+            <h2 id="melodyTitle">🎶 听音接龙</h2>
+            <p class="melody-intro">先用下方五个琴键熟悉音高，再按「开始接龙」。从三个音开始，听完后按顺序复现；答对一轮就加一个音，成功复现八个音即通关。</p>
+            <div class="melody-score">
+                <span>本局 <strong id="melodyScore">0</strong> 轮</span>
+                <span>最佳 <strong id="melodyBest">0</strong> 轮</span>
+            </div>
+            <div id="melodySlots" class="melody-slots" aria-hidden="true"></div>
+            <p id="melodyStatus" class="melody-status" role="status" aria-live="polite"></p>
+            <div class="melody-actions">
+                <button type="button" class="primary" id="melodyAdvance">开始接龙</button>
+                <button type="button" class="secondary" id="melodyReplay" disabled>重听旋律</button>
+            </div>
+            <div class="melody-keys" id="melodyKeys" aria-label="接龙琴键">
+                <button type="button" data-melody-note="0" aria-keyshortcuts="1"><kbd>1</kbd>C4</button>
+                <button type="button" data-melody-note="1" aria-keyshortcuts="2"><kbd>2</kbd>D4</button>
+                <button type="button" data-melody-note="2" aria-keyshortcuts="3"><kbd>3</kbd>E4</button>
+                <button type="button" data-melody-note="3" aria-keyshortcuts="4"><kbd>4</kbd>G4</button>
+                <button type="button" data-melody-note="4" aria-keyshortcuts="5"><kbd>5</kbd>A4</button>
+            </div>
+        </section>
+
+        <section id="intervalPanel" class="melody-panel" aria-labelledby="intervalTitle" hidden>
+            <h2 id="intervalTitle">🎼 音程挑战</h2>
+            <p class="melody-intro">每轮五题。听两个钢琴音，猜它们相隔多远，不用猜音名。前三题只上行，后两题也可能下行。</p>
+            <div class="melody-score">
+                <span>进度 <strong id="intervalProgress">0 / 5</strong></span>
+                <span>答对 <strong id="intervalScore">0</strong> 题</span>
+            </div>
+            <p id="intervalStatus" class="melody-status" role="status"></p>
+            <div class="melody-actions">
+                <button type="button" class="primary" id="intervalAdvance">开始挑战</button>
+                <button type="button" class="secondary" id="intervalReplay" disabled>重听两音</button>
+            </div>
+            <div id="intervalOptions" class="interval-options" role="group" aria-label="选择音程" hidden>
+                <button type="button" data-interval-choice="0" aria-keyshortcuts="1"><kbd aria-hidden="true">1</kbd><span></span></button>
+                <button type="button" data-interval-choice="1" aria-keyshortcuts="2"><kbd aria-hidden="true">2</kbd><span></span></button>
+                <button type="button" data-interval-choice="2" aria-keyshortcuts="3"><kbd aria-hidden="true">3</kbd><span></span></button>
+                <button type="button" data-interval-choice="3" aria-keyshortcuts="4"><kbd aria-hidden="true">4</kbd><span></span></button>
+            </div>
+            <p id="intervalFeedback" aria-live="polite" hidden></p>
+        </section>
 
         <div class="keyboard-hint" id="keyboardHint">
             💡 点击钢琴键来回答 | 在范围内的琴键有蓝色底边标记 | 绿色=正确 红色=错误 黄色=正确答案
@@ -1011,7 +1138,7 @@ let correctCount = 0;
 let wrongCount = 0;
 let totalCount = 0;
 let currentPlayingSource = null;  // 当前播放的音源
-let freeplayOctave = 4;  // 自由弹奏当前八度
+let freeplayOctave = 4;  // 自由弹奏映射的起始八度
 let activeKeySources = {};  // 自由弹奏时同时按下的键 -> {source, gain}
 let lastWrongIndex = null;  // 最近一次选错的按键索引，用于允许重复点击错误键重听
 let questionScored = false; // 当前题目是否已计分（保证每题只计入一次统计）
@@ -1487,8 +1614,12 @@ function switchMode(mode) {
     }
     currentMode = mode;
     document.querySelectorAll('.mode-tab').forEach(t => {
-        t.classList.toggle('active', t.dataset.mode === mode);
+        const active = t.dataset.mode === mode;
+        t.classList.toggle('active', active);
+        if (active) t.setAttribute('aria-current', 'true');
+        else t.removeAttribute('aria-current');
     });
+    updateGamesMenu(mode);
 
     // 音感训练模式下，根据参考模式决定是否显示播放参考按钮
     updateRefButtonVisibility();
@@ -1496,6 +1627,14 @@ function switchMode(mode) {
     const isFreeplay = mode === 'freeplay';
     const isPitch = mode === 'pitch';
     const isTraining = mode === 'training';
+    const isMelody = mode === 'melody';
+    document.getElementById('melodyPanel').hidden = !isMelody;
+    if (isMelody) renderMelody();
+    else stopMelody(true);
+    const isInterval = mode === 'interval';
+    document.getElementById('intervalPanel').hidden = !isInterval;
+    if (isInterval) renderInterval();
+    else stopInterval();
 
     // 各模式专属面板的显示/隐藏
     document.getElementById('freeplayPanel').style.display = isFreeplay ? 'block' : 'none';
@@ -1517,7 +1656,8 @@ function switchMode(mode) {
 
     // 钢琴键盘：音准模式隐藏（答题不在琴键上）
     const pianoWrap = document.querySelector('.piano-wrapper');
-    if (pianoWrap) pianoWrap.style.display = isPitch ? 'none' : '';
+    if (pianoWrap) pianoWrap.style.display = isPitch || isMelody || isInterval ? 'none' : '';
+    updateFreeplayKeyLabels(isFreeplay);
 
     // 非训练模式下清除范围高亮
     if (isTraining) {
@@ -2269,29 +2409,42 @@ function setupOctaveRefModeListener() {
 
 // ========== 自由弹奏 - 电脑键盘映射 ==========
 
-// 键盘按键 -> 音名偏移（相对于当前八度的C）
-const KEYBOARD_MAP = {
-    'KeyA': 0,   // C
-    'KeyW': 1,   // C#
-    'KeyS': 2,   // D
-    'KeyE': 3,   // D#
-    'KeyD': 4,   // E
-    'KeyF': 5,   // F
-    'KeyT': 6,   // F#
-    'KeyG': 7,   // G
-    'KeyY': 8,   // G#
-    'KeyH': 9,   // A
-    'KeyU': 10,  // A#
-    'KeyJ': 11,  // B
-    'KeyK': 12,  // 高八度C
-};
+// 两排按连续半音排布：下排从 C 到下一组 E，上排接着从 F 到下一组 A。
+const FREEPLAY_ROWS = [
+    ['KeyZ', 'KeyS', 'KeyX', 'KeyD', 'KeyC', 'KeyV', 'KeyG', 'KeyB', 'KeyH', 'KeyN', 'KeyJ', 'KeyM',
+        'Comma', 'KeyL', 'Period', 'Semicolon', 'Slash'],
+    ['KeyQ', 'Digit2', 'KeyW', 'Digit3', 'KeyE', 'Digit4', 'KeyR', 'KeyT', 'Digit6', 'KeyY',
+        'Digit7', 'KeyU', 'KeyI', 'Digit9', 'KeyO', 'Digit0', 'KeyP'],
+];
+const FREEPLAY_CODES = FREEPLAY_ROWS.flat();
+const KEYBOARD_MAP = Object.fromEntries(FREEPLAY_CODES.map((code, offset) => [code, offset]));
+const FREEPLAY_PUNCTUATION = { Comma: ',', Period: '.', Slash: '/', Semicolon: ';' };
+const FREEPLAY_LOWEST_OCTAVE = 1; // C1 是 88 键上的第一个 C
+const FREEPLAY_HIGHEST_OCTAVE = Math.floor((108 - FREEPLAY_CODES.length + 1) / 12) - 1;
+
+function updateFreeplayKeyLabels(enabled) {
+    for (const key of pianoKeys) {
+        if (key) delete key.dataset.freeplayKey;
+    }
+    if (!enabled) return;
+    const firstIndex = (freeplayOctave + 1) * 12 - ALL_NOTES[0].midi;
+    const lastIndex = firstIndex + FREEPLAY_CODES.length - 1;
+    for (const [code, offset] of Object.entries(KEYBOARD_MAP)) {
+        const key = pianoKeys[firstIndex + offset];
+        if (key) key.dataset.freeplayKey = FREEPLAY_PUNCTUATION[code] || code.replace(/^(Key|Digit)/, '');
+    }
+    document.getElementById('freeplayOctave').textContent = `${ALL_NOTES[firstIndex].name}–${ALL_NOTES[lastIndex].name}`;
+    document.getElementById('freeplayLower').disabled = freeplayOctave === FREEPLAY_LOWEST_OCTAVE;
+    document.getElementById('freeplayHigher').disabled = freeplayOctave === FREEPLAY_HIGHEST_OCTAVE;
+    scrollPianoToRange([firstIndex, lastIndex]);
+}
 
 function shiftFreeplayOctave(delta) {
-    const next = Math.max(0, Math.min(8, freeplayOctave + delta));
+    const next = Math.max(FREEPLAY_LOWEST_OCTAVE, Math.min(FREEPLAY_HIGHEST_OCTAVE, freeplayOctave + delta));
     if (next === freeplayOctave) return;
     releaseFreeplayKeys();
     freeplayOctave = next;
-    document.getElementById('freeplayOctave').textContent = freeplayOctave;
+    updateFreeplayKeyLabels(currentMode === 'freeplay');
 }
 
 function freeplayNoteOn(code) {
@@ -2366,6 +2519,17 @@ document.addEventListener('keydown', (e) => {
     if (e.repeat) return;
     const tag = (e.target && e.target.tagName) || '';
 
+    if (currentMode === 'melody' || currentMode === 'interval') {
+        const melodyMode = currentMode === 'melody';
+        if (!e.altKey && !e.ctrlKey && !e.metaKey && !e.target?.isContentEditable &&
+                !['SELECT', 'INPUT', 'TEXTAREA'].includes(tag) &&
+                (melodyMode ? /^[1-5]$/ : /^[1-4]$/).test(e.key)) {
+            e.preventDefault();
+            (melodyMode ? chooseMelodyNote : answerInterval)(Number(e.key) - 1);
+        }
+        return;
+    }
+
     // 音准模式独占键盘快捷键（沿用 A=出题 的统一按键方案；滑块聚焦时方向键仍可原生微调）
     if (currentMode === 'pitch') {
         handlePitchKey(e);
@@ -2378,19 +2542,14 @@ document.addEventListener('keydown', (e) => {
     // 自由弹奏模式的键盘输入
     if (currentMode === 'freeplay') {
         if (e.altKey || e.ctrlKey || e.metaKey || e.target?.isContentEditable) return;
-        if (e.code === 'KeyZ') {
-            shiftFreeplayOctave(-1);
-            return;
-        }
-        if (e.code === 'KeyX') {
-            shiftFreeplayOctave(1);
-            return;
-        }
-        if (KEYBOARD_MAP[e.code] !== undefined) {
+        if (e.code === 'BracketLeft' || e.code === 'BracketRight') {
+            e.preventDefault();
+            shiftFreeplayOctave(e.code === 'BracketLeft' ? -1 : 1);
+        } else if (KEYBOARD_MAP[e.code] !== undefined) {
             e.preventDefault();
             freeplayNoteOn(e.code);
-            return;
         }
+        return;
     }
 
     // A - 出题
@@ -3167,9 +3326,346 @@ function importProgress(input) {
     reader.readAsText(file);
 }
 
+// ========== 听音接龙 ==========
+const MELODY_NOTE_NAMES = ['C4', 'D4', 'E4', 'G4', 'A4'];
+const MELODY_MIDI = [60, 62, 64, 67, 69];
+const MELODY_MAX_LENGTH = 8;
+const MELODY_BEST_KEY = 'piano-ear-trainer.melody.best.v1';
+const melodyRound = {
+    sequence: [],
+    entered: 0,
+    score: 0,
+    best: 0,
+    phase: 'idle',
+    playToken: 0,
+    sources: new Set(),
+};
+
+function renderMelody() {
+    const { phase, score, best, entered, sequence } = melodyRound;
+    document.getElementById('melodyScore').textContent = score;
+    document.getElementById('melodyBest').textContent = best;
+
+    const advance = document.getElementById('melodyAdvance');
+    advance.disabled = !['idle', 'round-won', 'lost', 'won'].includes(phase);
+    advance.textContent = phase === 'round-won' ? '下一轮'
+        : (phase === 'lost' || phase === 'won') ? '再玩一局' : '开始接龙';
+    document.getElementById('melodyReplay').disabled = !['answering', 'interrupted'].includes(phase);
+    document.querySelectorAll('#melodyKeys button').forEach(button => {
+        button.disabled = !['idle', 'answering', 'lost', 'won'].includes(phase);
+    });
+
+    const slots = document.getElementById('melodySlots');
+    slots.replaceChildren(...sequence.map((note, i) => {
+        const slot = document.createElement('span');
+        slot.className = 'melody-slot';
+        if (i < entered) slot.classList.add('done');
+        if (phase === 'lost' && i === entered) slot.classList.add('missed');
+        slot.textContent = i < entered || phase === 'lost' ? MELODY_NOTE_NAMES[note] : '·';
+        return slot;
+    }));
+
+    const messages = {
+        idle: '准备好了？你可以先试听五个琴键。',
+        listening: '先听，不用按键。旋律播完后开始作答。',
+        answering: `轮到你了：已答对 ${entered} / ${sequence.length} 个音。`,
+        'round-won': '完全正确！下一轮会在旋律末尾再加一个音。',
+        won: '🏆 通关！你完整复现了八个音。',
+        lost: `第 ${entered + 1} 个音答错了。正确旋律：${sequence.map(i => MELODY_NOTE_NAMES[i]).join(' · ')}。`,
+        interrupted: '播放已中断，请点击「重听旋律」再试一次。',
+    };
+    document.getElementById('melodyStatus').textContent = messages[phase];
+}
+
+function stopMelody(pauseRound = false) {
+    ++melodyRound.playToken;
+    for (const source of melodyRound.sources) {
+        try { source.stop(); } catch (e) {}
+    }
+    melodyRound.sources.clear();
+    if (pauseRound && melodyRound.phase === 'listening') melodyRound.phase = 'interrupted';
+}
+
+function playMelodyNote(note, duration) {
+    const layer = VELOCITY_LAYERS.includes('mf') ? 'mf' : (VELOCITY_LAYERS[0] || 'mf');
+    const played = playNote(MELODY_MIDI[note], duration, true, layer);
+    if (!played) return false;
+    melodyRound.sources.add(played.source);
+    played.source.addEventListener('ended', () => melodyRound.sources.delete(played.source), { once: true });
+    return true;
+}
+
+async function listenToMelody() {
+    stopMelody();
+    const token = melodyRound.playToken;
+    melodyRound.entered = 0;
+    melodyRound.phase = 'listening';
+    renderMelody();
+    try {
+        for (const note of melodyRound.sequence) {
+            if (token !== melodyRound.playToken || currentMode !== 'melody') return;
+            if (!playMelodyNote(note, 0.42)) throw new Error('Melody sample unavailable');
+            await new Promise(resolve => setTimeout(resolve, 540));
+        }
+        if (token !== melodyRound.playToken || currentMode !== 'melody') return;
+        melodyRound.phase = 'answering';
+    } catch (e) {
+        if (token !== melodyRound.playToken || currentMode !== 'melody') return;
+        melodyRound.phase = 'interrupted';
+    }
+    renderMelody();
+}
+
+function appendMelodyNote() {
+    const sequence = melodyRound.sequence;
+    const last = sequence[sequence.length - 1];
+    const choices = MELODY_MIDI.map((_, i) => i).filter(i => i !== last);
+    sequence.push(choices[Math.floor(Math.random() * choices.length)]);
+}
+
+function advanceMelody() {
+    if (melodyRound.phase === 'round-won') {
+        appendMelodyNote();
+    } else if (['idle', 'lost', 'won'].includes(melodyRound.phase)) {
+        melodyRound.score = 0;
+        melodyRound.sequence = [];
+        for (let i = 0; i < 3; i++) appendMelodyNote();
+    } else return;
+    listenToMelody();
+}
+
+function chooseMelodyNote(note) {
+    if (currentMode !== 'melody') return;
+    const isGuess = melodyRound.phase === 'answering';
+    if (!isGuess && !['idle', 'lost', 'won'].includes(melodyRound.phase)) return;
+
+    stopMelody();
+    try {
+        if (!playMelodyNote(note, 0.35)) {
+            document.getElementById('melodyStatus').textContent = '钢琴采样无法播放，请检查采样文件或刷新页面后重试。';
+            return;
+        }
+    } catch (e) {
+        document.getElementById('melodyStatus').textContent = '音频无法播放，请刷新页面后重试。';
+        return;
+    }
+    if (!isGuess) return;
+
+    if (note !== melodyRound.sequence[melodyRound.entered]) {
+        melodyRound.phase = 'lost';
+    } else if (++melodyRound.entered === melodyRound.sequence.length) {
+        ++melodyRound.score;
+        if (melodyRound.score > melodyRound.best) {
+            melodyRound.best = melodyRound.score;
+            try { localStorage.setItem(MELODY_BEST_KEY, String(melodyRound.best)); } catch (e) {}
+        }
+        melodyRound.phase = melodyRound.sequence.length === MELODY_MAX_LENGTH ? 'won' : 'round-won';
+    }
+    renderMelody();
+}
+
+function updateGamesMenu(mode) {
+    const details = document.getElementById('gamesMenu');
+    const summary = document.getElementById('gamesMenuToggle');
+    let currentGame = false;
+    details.querySelectorAll('[data-game-mode]').forEach(button => {
+        if (button.dataset.gameMode === mode) {
+            currentGame = true;
+            button.setAttribute('aria-current', 'true');
+        } else button.removeAttribute('aria-current');
+    });
+    summary.classList.toggle('active', currentGame);
+    details.open = false;
+}
+
+function setupGamesMenu() {
+    const details = document.getElementById('gamesMenu');
+    const summary = document.getElementById('gamesMenuToggle');
+    document.getElementById('gamesMenuItems').addEventListener('click', e => {
+        const button = e.target.closest('[data-game-mode]');
+        if (!button) return;
+        switchMode(button.dataset.gameMode);
+        summary.focus();
+    });
+    details.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && details.open) {
+            e.preventDefault();
+            details.open = false;
+            summary.focus();
+        }
+    });
+    document.addEventListener('click', e => {
+        if (details.open && !details.contains(e.target)) details.open = false;
+    });
+    details.addEventListener('focusout', e => {
+        if (details.open && e.relatedTarget && !details.contains(e.relatedTarget)) details.open = false;
+    });
+}
+
+function setupMelody() {
+    try {
+        const best = Number(localStorage.getItem(MELODY_BEST_KEY));
+        if (Number.isInteger(best) && best >= 0 && best <= MELODY_MAX_LENGTH - 2) melodyRound.best = best;
+    } catch (e) {}
+    document.getElementById('melodyAdvance').addEventListener('click', advanceMelody);
+    document.getElementById('melodyReplay').addEventListener('click', () => {
+        if (['answering', 'interrupted'].includes(melodyRound.phase)) listenToMelody();
+    });
+    document.querySelectorAll('#melodyKeys button').forEach(button => {
+        button.addEventListener('click', () => chooseMelodyNote(Number(button.dataset.melodyNote)));
+    });
+    renderMelody();
+}
+
+// ========== 音程挑战 ==========
+const INTERVAL_COUNT = 5;
+const INTERVAL_EASY = [2, 4, 7, 12];
+const INTERVAL_ADVANCED = [3, 4, 5, 7];
+const INTERVAL_ROOTS = [60, 62, 64, 65, 67, 69, 71];
+const INTERVAL_DEGREES = { 2: 1, 3: 2, 4: 2, 5: 3, 7: 4, 12: 7 };
+const INTERVAL_LABELS = {
+    2: ['大二度', '距离两个半音，等于一个全音'],
+    3: ['小三度', '比大三度窄一个半音'],
+    4: ['大三度', '比小三度宽一个半音'],
+    5: ['纯四度', '比纯五度窄一个全音'],
+    7: ['纯五度', '比纯四度宽一个全音'],
+    12: ['纯八度', '两个音名字相同，刚好差一个八度'],
+};
+const intervalRound = {
+    index: 0, score: 0, question: null, selected: null, heard: false,
+    playing: false, failedPlayback: false, token: 0, sources: new Set(),
+};
+
+function intervalNoteNames({ notes: [first, second], distance }) {
+    const direction = second > first ? 1 : -1;
+    const degree = INTERVAL_ROOTS.indexOf(first) + direction * INTERVAL_DEGREES[distance];
+    const rootIndex = (degree % 7 + 7) % 7;
+    const octaveOffset = Math.floor(degree / 7);
+    const natural = INTERVAL_ROOTS[rootIndex] + octaveOffset * 12;
+    const accidental = second < natural ? '♭' : second > natural ? '♯' : '';
+    return [ALL_NOTES[first - 21].name, `${'CDEFGAB'[rootIndex]}${accidental}${4 + octaveOffset}`];
+}
+
+function renderInterval() {
+    const { index, score, question, selected, heard, playing, failedPlayback } = intervalRound;
+    const answered = selected !== null;
+    const complete = answered && index === INTERVAL_COUNT;
+    document.getElementById('intervalProgress').textContent = `${index} / ${INTERVAL_COUNT}`;
+    document.getElementById('intervalScore').textContent = score;
+    const advance = document.getElementById('intervalAdvance');
+    advance.disabled = playing || (!!question && !answered);
+    advance.textContent = complete ? '再玩一轮' : question ? '下一题' : '开始挑战';
+    document.getElementById('intervalReplay').disabled = !question || playing;
+    const status = document.getElementById('intervalStatus');
+    if (!question) status.textContent = '准备好了吗？点「开始挑战」听第一组。';
+    else if (playing) status.textContent = '正在播放两音，请先听完。';
+    else if (failedPlayback) status.textContent = '音频未能播放。若页面提示「重试加载」，请先重试，再点「重听两音」。';
+    else if (!heard) status.textContent = '播放已中断，点「重听两音」继续。';
+    else if (complete) status.textContent = `挑战完成！五题答对 ${score} 题。`;
+    else if (answered) status.textContent = '记住这个音程的感觉，准备好就继续。';
+    else status.textContent = '两个音相隔多远？点击答案，或按 1–4 作答。';
+
+    document.getElementById('intervalOptions').hidden = !question;
+    document.querySelectorAll('[data-interval-choice]').forEach((button, i) => {
+        const choice = question?.choices[i];
+        button.querySelector('span').textContent = choice ? INTERVAL_LABELS[choice][0] : '';
+        button.disabled = !question || !heard || playing || answered;
+        button.classList.toggle('correct', answered && choice === question.distance);
+        button.classList.toggle('incorrect', answered && choice === selected && choice !== question.distance);
+    });
+
+    const feedback = document.getElementById('intervalFeedback');
+    feedback.hidden = !answered;
+    let explanation = '';
+    if (answered) {
+        const [label, clue] = INTERVAL_LABELS[question.distance];
+        const outcome = selected === question.distance ? '答对了！' : `你选了${INTERVAL_LABELS[selected][0]}，正确答案是`;
+        const [first, second] = intervalNoteNames(question);
+        explanation = `${outcome}${label} · ${question.distance} 个半音（${first} → ${second}，${question.notes[0] < question.notes[1] ? '上行' : '下行'}）。${clue}。`;
+    }
+    if (feedback.textContent !== explanation) feedback.textContent = explanation;
+}
+
+function stopInterval() {
+    ++intervalRound.token;
+    intervalRound.playing = false;
+    for (const source of intervalRound.sources) {
+        try { source.stop(); } catch (e) {}
+    }
+    intervalRound.sources.clear();
+}
+
+async function listenToInterval() {
+    if (!intervalRound.question || intervalRound.playing || currentMode !== 'interval') return;
+    const token = ++intervalRound.token;
+    intervalRound.playing = true;
+    intervalRound.failedPlayback = false;
+    renderInterval();
+    const layer = VELOCITY_LAYERS.includes('mf') ? 'mf' : (VELOCITY_LAYERS[0] || 'mf');
+    try {
+        for (const midi of intervalRound.question.notes) {
+            if (token !== intervalRound.token || currentMode !== 'interval') return;
+            const played = playNote(midi, 0.52, true, layer);
+            if (!played) throw new Error('Interval sample unavailable');
+            intervalRound.sources.add(played.source);
+            played.source.addEventListener('ended', () => intervalRound.sources.delete(played.source), { once: true });
+            await new Promise(resolve => setTimeout(resolve, 630));
+        }
+        if (token !== intervalRound.token || currentMode !== 'interval') return;
+        intervalRound.heard = true;
+    } catch (e) {
+        if (token !== intervalRound.token || currentMode !== 'interval') return;
+        intervalRound.failedPlayback = true;
+    }
+    intervalRound.playing = false;
+    renderInterval();
+}
+
+function advanceInterval() {
+    if (currentMode !== 'interval' || intervalRound.playing || (intervalRound.question && intervalRound.selected === null)) return;
+    const previous = intervalRound.question?.distance;
+    if (intervalRound.index === INTERVAL_COUNT) {
+        intervalRound.index = 0;
+        intervalRound.score = 0;
+    }
+    ++intervalRound.index;
+    const advanced = intervalRound.index > 3;
+    const choices = advanced ? INTERVAL_ADVANCED : INTERVAL_EASY;
+    const targets = choices.filter(distance => distance !== previous);
+    const distance = targets[Math.floor(Math.random() * targets.length)];
+    const first = INTERVAL_ROOTS[Math.floor(Math.random() * INTERVAL_ROOTS.length)];
+    const direction = advanced && Math.random() < 0.5 ? -1 : 1;
+    intervalRound.question = { choices, distance, notes: [first, first + direction * distance] };
+    intervalRound.selected = null;
+    intervalRound.heard = false;
+    listenToInterval();
+}
+
+function answerInterval(index) {
+    if (currentMode !== 'interval' || !intervalRound.question || !intervalRound.heard || intervalRound.playing ||
+            intervalRound.selected !== null) return;
+    const selected = intervalRound.question.choices[index];
+    if (selected === undefined) return;
+    intervalRound.selected = selected;
+    if (selected === intervalRound.question.distance) ++intervalRound.score;
+    renderInterval();
+}
+
+function setupInterval() {
+    document.getElementById('intervalAdvance').addEventListener('click', advanceInterval);
+    document.getElementById('intervalReplay').addEventListener('click', listenToInterval);
+    document.querySelectorAll('[data-interval-choice]').forEach(button => {
+        button.addEventListener('click', () => answerInterval(Number(button.dataset.intervalChoice)));
+    });
+    renderInterval();
+}
+
 // ========== 初始化 ==========
 
 async function init() {
+    setupGamesMenu();
+    setupMelody();
+    setupInterval();
     populateSelects();
     pianoKeys = buildPiano();
     updateRangeHighlight();
