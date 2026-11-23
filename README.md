@@ -125,11 +125,13 @@ VELOCITY_LAYERS="mf" bash setup.sh && bash run.sh
 ### 停止服务 / 查看日志
 
 ```bash
-# 停止（启动时会提示 PID，或按端口查找）
-lsof -i :7860 -t | xargs kill -9
+# 停止：把 PID 换成 run.sh 启动时显示的进程号
+kill PID
 # 日志
 tail -f app.log
 ```
+
+端口已占用时，启动脚本会退出，不会结束占用端口的进程。可尝试 `PORT=7861 bash run.sh`。
 
 ## 🛠️ 开发与静态部署
 

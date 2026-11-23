@@ -454,6 +454,15 @@
             z-index: 1000;
         }
         .loading-overlay.hidden { display: none; }
+        .sample-notice {
+            border: 1px solid #b18d53;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin: 0 0 14px;
+            color: #ffe3b1;
+            background: #362a21;
+        }
+        .sample-notice p { margin: 0 0 8px; }
         .loading-text {
             font-size: 1.3em;
             margin-bottom: 20px;
@@ -638,17 +647,22 @@
         <h1>🎹 钢琴音感与音准训练器</h1>
         <p class="subtitle">单音听辨 · 音准训练（缝里的音）· 自由弹奏，用真实钢琴采样打磨你的耳朵</p>
 
+        <div class="sample-notice" id="sampleNotice" hidden>
+            <p id="sampleNoticeText" role="status" aria-live="polite"></p>
+            <button type="button" id="sampleRetry" class="secondary" onclick="retrySamples()">重试加载</button>
+        </div>
+
         <!-- 模式选择 -->
         <div class="mode-tabs">
-            <div class="mode-tab active" data-mode="training" onclick="switchMode('training')">
+            <button type="button" class="mode-tab active" data-mode="training" onclick="switchMode('training')">
                 🎵 音感训练
-            </div>
-            <div class="mode-tab" data-mode="pitch" onclick="switchMode('pitch')">
+            </button>
+            <button type="button" class="mode-tab" data-mode="pitch" onclick="switchMode('pitch')">
                 🎯 音准训练
-            </div>
-            <div class="mode-tab" data-mode="freeplay" onclick="switchMode('freeplay')">
+            </button>
+            <button type="button" class="mode-tab" data-mode="freeplay" onclick="switchMode('freeplay')">
                 🎹 自由弹奏
-            </div>
+            </button>
         </div>
 
         <!-- 控制面板 -->
@@ -844,8 +858,8 @@
         <div id="pitchPanel" style="display:none;">
             <div class="pitch-block">
                 <div class="pitch-submodes">
-                    <div class="pitch-submode-btn active" data-submode="direction" onclick="setPitchSubMode('direction')">🎯 偏差方向</div>
-                    <div class="pitch-submode-btn" data-submode="tuning" onclick="setPitchSubMode('tuning')">🎼 调准练习</div>
+                    <button type="button" class="pitch-submode-btn active" data-submode="direction" onclick="setPitchSubMode('direction')">🎯 偏差方向</button>
+                    <button type="button" class="pitch-submode-btn" data-submode="tuning" onclick="setPitchSubMode('tuning')">🎼 调准练习</button>
                 </div>
                 <div class="pitch-submode-desc" id="pitchSubModeDesc"></div>
 
@@ -982,6 +996,8 @@ let audioCtx = null;
 const sampleBuffers = {};
 // 已加载的力度层集合（用于懒加载判断）
 const loadedLayers = new Set();
+const incompleteLayers = new Set();
+let audioIssueLayer = null;
 // 正在加载中的力度层 Promise（防止重复加载）
 const loadingLayerPromises = {};
 
@@ -1002,6 +1018,7 @@ let questionScored = false; // 当前题目是否已计分（保证每题只计�
 let currentVelocityLayer = 'mp'; // 当前使用的力度层
 let cachedOctaveRefNotes = null;  // 缓存的八度参考音列表，出题时生成，重听时复用
 let cachedIntervalRefNotes = null;  // 缓存的音程参考数据，出题时生成，重听时复用
+let referencePlayback = null; // 正在播放的参考序列；对象身份用于取消过期的异步回调
 let streakCount = 0;        // 当前连对数
 let maxStreak = 0;          // 历史最高连对
 let lastAnswerIndex = null; // 上一题答案索引（用于避免连续出同一个音）
@@ -1023,6 +1040,8 @@ let pitchMinJnd = null;           // 历史最小可辨（音分，偏差方向�
 let pitchJndHistory = [];         // 每题被测难度序列，用于阈值曲线（偏差方向模式）
 let lastPitchQuestionAt = 0;      // 出题防抖时间戳
 let pitchStimulusTimer = null;    // “先后播两个音”的延时器（用于清理，避免连点出题声音串味）
+let pitchPlayingSources = [];
+let pitchVelocityLayer = null;    // 同一题的参考音和目标音共享力度与音色
 let pitchReversed = false;        // 偏差方向：是否已出现首次答错（用于粗搜→细搜切换）
 let pitchBaseName = '';           // 当前基准音名（用于薄弱音区统计）
 let pitchNoteStats = {};          // 每个音的音准表现: name -> {dirN,dirWrong,tuneN,tuneResid}
@@ -1093,10 +1112,25 @@ function getVelocityLayer() {
  * polyphonic: 是否多声部模式（不停止前一个音）
  * velocityOverride: 强制使用指定力度层（不为空时忽略力度模式设置）
  */
+function getSampleBuffer(sampleName, requestedLayer) {
+    const layer = [requestedLayer, 'mf', ...VELOCITY_LAYERS].find(name => sampleBuffers[name]?.[sampleName]);
+    return layer === undefined ? null : sampleBuffers[layer][sampleName];
+}
+
 function playNote(midi, duration = 3.0, polyphonic = false, velocityOverride = null, centsOffset = 0) {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const velLayer = velocityOverride || getVelocityLayer();
+    const { sampleName, semitoneOffset } = findNearestSample(midi);
+    const finalBuffer = getSampleBuffer(sampleName, velLayer);
+
+    // 未尝试的力度层仍会按需加载；失败后改由明确的重试按钮再次请求，
+    // 避免一串琴键或练习中的循环播放反复打满网络。
+    if (!loadedLayers.has(velLayer)) loadSingleLayer(velLayer);
+    if (!finalBuffer) {
+        showAudioIssue(velLayer, '这个音的钢琴采样还不能播放，请重试加载后再试。');
+        return null;
     }
+
+    if (!audioCtx) return null;
     // iOS/Safari 关键修复：切后台/锁屏/切标签页后，AudioContext 会被系统自动挂起(suspended)，
     // 若不恢复直接 start() 会没有声音。此处由用户手势间接触发，resume() 合法。
     if (audioCtx.state === 'suspended') {
@@ -1108,40 +1142,7 @@ function playNote(midi, duration = 3.0, polyphonic = false, velocityOverride = n
         try { currentPlayingSource.stop(); } catch(e) {}
     }
 
-    // 确定力度层
-    const velLayer = velocityOverride || getVelocityLayer();
     currentVelocityLayer = velLayer;
-
-    const { sampleName, semitoneOffset } = findNearestSample(midi);
-
-    // 从对应力度层的缓冲区中获取采样
-    const layerBuffers = sampleBuffers[velLayer];
-    const buffer = layerBuffers ? layerBuffers[sampleName] : null;
-
-    // 如果指定力度层没有采样，尝试 fallback 到 mf 层（默认加载层）
-    let finalBuffer = buffer;
-    if (!finalBuffer && sampleBuffers['mf']) {
-        finalBuffer = sampleBuffers['mf'][sampleName];
-    }
-    // 再 fallback: 尝试任何已加载的层
-    if (!finalBuffer) {
-        for (const layer of VELOCITY_LAYERS) {
-            if (sampleBuffers[layer] && sampleBuffers[layer][sampleName]) {
-                finalBuffer = sampleBuffers[layer][sampleName];
-                break;
-            }
-        }
-    }
-
-    // 如果该力度层尚未加载，异步触发后台加载（下次播放时就有了）
-    if (!loadedLayers.has(velLayer)) {
-        loadSingleLayer(velLayer);
-    }
-
-    if (!finalBuffer) {
-        console.warn(`采样 ${sampleName} (${velLayer}) 未加载`);
-        return null;
-    }
 
     const source = audioCtx.createBufferSource();
     source.buffer = finalBuffer;
@@ -1183,7 +1184,7 @@ function playNote(midi, duration = 3.0, polyphonic = false, velocityOverride = n
  * @param {function} [onProgress] - 进度回调 (loaded, total)
  * @returns {Promise<number>} 成功加载的采样数
  */
-async function loadSingleLayer(layer, onProgress) {
+async function loadSingleLayer(layer, onProgress, retry = false) {
     // 如果已加载，直接返回
     if (loadedLayers.has(layer)) {
         return Object.keys(sampleBuffers[layer] || {}).length;
@@ -1192,16 +1193,22 @@ async function loadSingleLayer(layer, onProgress) {
     if (loadingLayerPromises[layer]) {
         return loadingLayerPromises[layer];
     }
+    if (incompleteLayers.has(layer) && !retry) {
+        return Object.keys(sampleBuffers[layer] || {}).length;
+    }
 
-    const promise = (async () => {
+    const promise = Promise.resolve().then(async () => {
         if (!audioCtx) {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }
-        sampleBuffers[layer] = {};
+        const buffers = sampleBuffers[layer] ||= {};
         const total = AVAILABLE_SAMPLES.length;
-        let loaded = 0;
+        const missing = AVAILABLE_SAMPLES.filter(name => !buffers[name]);
+        let loaded = total - missing.length;
+        const request = new AbortController();
+        const timeout = setTimeout(() => request.abort(), 12000);
 
-        const promises = AVAILABLE_SAMPLES.map(name => (async () => {
+        const promises = missing.map(name => (async () => {
             // 文件名安全化：'#' 在 URL 中必须转义为 %23，而部分静态托管（如 EdgeOne）不解析该转义会返回 404，
             // 因此采样文件统一用 's' 代替 '#'（F#1 -> Fs1）。旧的 '#' 命名保留为兼容回退。
             const safeName = name.replace('#', 's');
@@ -1214,11 +1221,12 @@ async function loadSingleLayer(layer, onProgress) {
             candidates.push(`samples/${safeName}.${AUDIO_FORMAT}`);
 
             for (const url of candidates) {
+                if (request.signal.aborted) break;
                 try {
-                    const response = await fetch(url);
+                    const response = await fetch(url, { signal: request.signal });
                     if (!response.ok) continue;
                     const arrayBuffer = await response.arrayBuffer();
-                    sampleBuffers[layer][name] = await audioCtx.decodeAudioData(arrayBuffer);
+                    buffers[name] = await audioCtx.decodeAudioData(arrayBuffer);
                     break;
                 } catch (e) {
                     // 该候选路径失败，尝试下一个
@@ -1228,16 +1236,55 @@ async function loadSingleLayer(layer, onProgress) {
             if (onProgress) onProgress(loaded, total);
         })());
 
-        await Promise.all(promises);
-        const count = Object.keys(sampleBuffers[layer]).length;
-        loadedLayers.add(layer);
-        delete loadingLayerPromises[layer];
+        try {
+            await Promise.all(promises);
+        } finally {
+            clearTimeout(timeout);
+        }
+    }).catch(err => {
+        console.warn(`力度层 ${layer} 无法加载`, err);
+    }).then(() => {
+        const count = Object.keys(sampleBuffers[layer] || {}).length;
+        if (count === AVAILABLE_SAMPLES.length) {
+            loadedLayers.add(layer);
+            incompleteLayers.delete(layer);
+            if (audioIssueLayer === layer) {
+                audioIssueLayer = null;
+                document.getElementById('sampleNotice').hidden = true;
+            }
+        } else {
+            incompleteLayers.add(layer);
+        }
         console.log(`力度层 ${layer}: 加载了 ${count} 个采样`);
         return count;
-    })();
+    }).finally(() => {
+        delete loadingLayerPromises[layer];
+    });
 
     loadingLayerPromises[layer] = promise;
     return promise;
+}
+
+function showAudioIssue(layer, message) {
+    audioIssueLayer = layer;
+    document.getElementById('sampleNoticeText').textContent = message;
+    document.getElementById('sampleNotice').hidden = false;
+}
+
+async function retrySamples() {
+    const layer = audioIssueLayer;
+    const button = document.getElementById('sampleRetry');
+    if (!layer || button.disabled) return;
+    button.disabled = true;
+    showAudioIssue(layer, '正在重试缺失的钢琴采样…');
+    try {
+        const count = await loadSingleLayer(layer, null, true);
+        if (audioIssueLayer === layer) {
+            showAudioIssue(layer, `已加载 ${count}/${AVAILABLE_SAMPLES.length} 个钢琴采样；可检查网络或采样文件后重试。`);
+        }
+    } finally {
+        button.disabled = false;
+    }
 }
 
 /**
@@ -1250,7 +1297,10 @@ async function ensureLayerLoaded(layer) {
     const origText = statusEl.textContent;
     const loadingMsg = `⏳ 正在加载 ${VELOCITY_LABELS[layer] || layer} 力度采样...`;
     statusEl.textContent = loadingMsg;
-    await loadSingleLayer(layer);
+    const count = await loadSingleLayer(layer);
+    if (count < AVAILABLE_SAMPLES.length) {
+        showAudioIssue(layer, `此力度只加载了 ${count}/${AVAILABLE_SAMPLES.length} 个采样，可重试缺失的文件。`);
+    }
     // 仅当期间未被其它逻辑改动时才恢复，避免覆盖新状态
     if (statusEl.textContent === loadingMsg) statusEl.textContent = origText;
 }
@@ -1259,18 +1309,12 @@ async function ensureLayerLoaded(layer) {
  * 初始加载：只加载默认力度层（mf），大幅减少首屏流量
  */
 async function loadSamples() {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-
     const loadingBar = document.getElementById('loadingBar');
     const loadingText = document.querySelector('.loading-text');
 
     // 只加载默认力度层：优先 mf，若配置中不含 mf 则退回到第一个可用力度层
     const defaultLayer = VELOCITY_LAYERS.includes('mf') ? 'mf' : (VELOCITY_LAYERS[0] || 'mf');
-    const total = AVAILABLE_SAMPLES.length;
-
-    await loadSingleLayer(defaultLayer, (loaded, t) => {
+    const count = await loadSingleLayer(defaultLayer, (loaded, t) => {
         loadingBar.style.width = (loaded / t * 100) + '%';
         if (loadingText) {
             loadingText.textContent = `🎹 正在加载钢琴采样... (${loaded}/${t})`;
@@ -1279,10 +1323,8 @@ async function loadSamples() {
 
     document.getElementById('loadingOverlay').classList.add('hidden');
 
-    const count = Object.keys(sampleBuffers[defaultLayer] || {}).length;
-    if (count === 0) {
-        const st = document.getElementById('statusText');
-        if (st) st.textContent = '⚠️ 钢琴采样加载失败，请检查网络后刷新页面';
+    if (count < AVAILABLE_SAMPLES.length) {
+        showAudioIssue(defaultLayer, `钢琴采样只加载了 ${count}/${AVAILABLE_SAMPLES.length} 个。检查网络或采样文件后可重试，不必刷新页面。`);
     }
     console.log(`首屏加载完成: ${defaultLayer} 层 ${count} 个采样 (格式: ${AUDIO_FORMAT})`);
     console.log(`其余力度层将在需要时按需加载`);
@@ -1399,11 +1441,11 @@ function populateSelects() {
 
     lowSelect.addEventListener('change', () => {
         lowNoteIndex = parseInt(lowSelect.value);
-        updateRangeHighlight();
+        updateTrainingRange();
     });
     highSelect.addEventListener('change', () => {
         highNoteIndex = parseInt(highSelect.value);
-        updateRangeHighlight();
+        updateTrainingRange();
     });
 
 }
@@ -1421,9 +1463,28 @@ function updateRangeHighlight() {
     }
 }
 
+// 如果新范围已排除当前答案，作废旧题，不应当把设置变化计作答错。
+function updateTrainingRange() {
+    updateRangeHighlight();
+    if (currentMode !== 'training' || !currentAnswer) return;
+    if (currentAnswer.index >= lowNoteIndex && currentAnswer.index <= highNoteIndex) return;
+    if (currentPlayingSource) {
+        try { currentPlayingSource.stop(); } catch (e) {}
+        currentPlayingSource = null;
+    }
+    resetQuestion();
+    lastNewQuestionAt = 0;
+    document.getElementById('statusText').textContent = '音域已调整，请重新出题';
+}
+
 // ========== 游戏逻辑 ==========
 
 function switchMode(mode) {
+    if (mode !== currentMode) {
+        if (currentMode === 'pitch') resetPitchRound();
+        if (currentMode === 'freeplay') releaseFreeplayKeys();
+        stopCurrentNote();
+    }
     currentMode = mode;
     document.querySelectorAll('.mode-tab').forEach(t => {
         t.classList.toggle('active', t.dataset.mode === mode);
@@ -1488,6 +1549,7 @@ function updateRefButtonVisibility() {
 }
 
 function resetQuestion() {
+    cancelReferencePlayback();
     currentAnswer = null;
     isAnswered = false;
     lastWrongIndex = null;
@@ -1521,6 +1583,15 @@ function newQuestion() {
         alert('请确保低音低于高音！');
         return;
     }
+    cancelReferencePlayback();
+
+    // 播放失败时不出静音题，也不把上一题误记成跳过。
+    const randomIdx = pickWeightedNoteIndex();
+    const nextAnswer = { index: randomIdx, ...ALL_NOTES[randomIdx] };
+    if (!playNote(nextAnswer.midi)) {
+        document.getElementById('hintArea').textContent = '这次没有播放目标音。重试加载后再出题。';
+        return;
+    }
 
     // 跳过计错：上一题已出但未作答（未计分）时，按「跳过/答错」计入统计，
     // 使无限换题逃避计分变得有代价（连对清零、正确率下降），但仍允许跳过难题。
@@ -1541,10 +1612,8 @@ function newQuestion() {
     cachedOctaveRefNotes = null;
     cachedIntervalRefNotes = null;
 
-    // 选一个音（可按薄弱音加权，见 pickWeightedNoteIndex）
-    const randomIdx = pickWeightedNoteIndex();
     lastAnswerIndex = randomIdx;
-    currentAnswer = { index: randomIdx, ...ALL_NOTES[randomIdx] };
+    currentAnswer = nextAnswer;
 
     document.getElementById('btnReplay').disabled = false;
     document.getElementById('btnShowAnswer').disabled = false;
@@ -1555,19 +1624,18 @@ function newQuestion() {
         document.getElementById('statusText').textContent = '音感训练 - 纯听音辨音';
         document.getElementById('hintArea').innerHTML =
             '<span class="hint-info">🎵 已播放一个音，请在键盘上点击你认为的答案</span>';
-        playNote(currentAnswer.midi);
     } else {
         // 有参考模式：先播放目标音，可借助参考来判断
         document.getElementById('statusText').textContent = '音感训练 - 先听目标音，可借助参考辅助';
         document.getElementById('hintArea').innerHTML =
             '<span class="hint-info">🎼 已播放目标音，可点击「播放参考」辅助判断</span>';
-        playNote(currentAnswer.midi);
         flashKey(randomIdx);
     }
 }
 
 function replayCurrentNote() {
     if (!currentAnswer) return;
+    cancelReferencePlayback();
     playNote(currentAnswer.midi);
     // 不在自由模式下闪烁
     if (currentMode === 'training' && !isAnswered) {
@@ -1694,7 +1762,6 @@ const RANDOM_INTERVALS = [2, 3, 4, 5, 7, 9, 12];
  * 返回 {notes: [{index, label}...], intervalName: string}
  */
 function getIntervalRefNotes() {
-    const answerIndex = currentAnswer.index;
     const ansOctave = currentAnswer.octave;
     const direction = document.getElementById('intervalDirection').value;
     let intervalSemitones = document.getElementById('intervalType').value;
@@ -1706,56 +1773,42 @@ function getIntervalRefNotes() {
         intervalSemitones = parseInt(intervalSemitones);
     }
 
-    // 基准音：目标音所在八度的C
-    const rootIndex = ALL_NOTES.findIndex(n => n.noteName === 'C' && n.octave === ansOctave);
+    if (!Number.isInteger(intervalSemitones) || intervalSemitones < 1 || intervalSemitones > 12) return null;
+    const intervalName = INTERVAL_NAMES[intervalSemitones];
+
+    const actualDirection = direction === 'random'
+        ? (Math.random() < 0.5 ? 'up' : 'down')
+        : direction;
+    if (!['up', 'down', 'both'].includes(actualDirection)) return null;
+
+    // 优先用目标音所在八度的 C；如果琴键边缘无法容纳所选音程，
+    // 只移动参考根音的八度，不把上行改成下行，也不省略其中一个方向。
+    const needsUp = actualDirection !== 'down';
+    const needsDown = actualDirection !== 'up';
+    let rootIndex = -1;
+    let nearestOctaveDistance = Infinity;
+    for (let i = 0; i < ALL_NOTES.length; i++) {
+        const note = ALL_NOTES[i];
+        if (note.noteName !== 'C') continue;
+        if (needsUp && i + intervalSemitones >= ALL_NOTES.length) continue;
+        if (needsDown && i - intervalSemitones < 0) continue;
+        const distance = Math.abs(note.octave - ansOctave);
+        if (distance < nearestOctaveDistance) {
+            nearestOctaveDistance = distance;
+            rootIndex = i;
+        }
+    }
     if (rootIndex === -1) return null;
 
-    const intervalName = INTERVAL_NAMES[intervalSemitones] || `${intervalSemitones}半音`;
-
-    // 确定实际播放方向
-    let actualDirection = direction;
-    if (direction === 'random') {
-        actualDirection = Math.random() < 0.5 ? 'up' : 'down';
-    }
-
-    // 计算音程目标音的索引
     const upperIndex = rootIndex + intervalSemitones;
     const lowerIndex = rootIndex - intervalSemitones;
-
+    const rootNote = { index: rootIndex, label: ALL_NOTES[rootIndex].name + ' (根音)' };
     const notes = [];
-
-    if (actualDirection === 'up') {
-        // 上行：根音 → 根音+音程
-        if (upperIndex < ALL_NOTES.length) {
-            notes.push({ index: rootIndex, label: ALL_NOTES[rootIndex].name + ' (根音)' });
-            notes.push({ index: upperIndex, label: ALL_NOTES[upperIndex].name + ' (↑' + intervalName + ')' });
-        }
-    } else if (actualDirection === 'down') {
-        // 下行：根音 → 根音-音程
-        if (lowerIndex >= 0) {
-            notes.push({ index: rootIndex, label: ALL_NOTES[rootIndex].name + ' (根音)' });
-            notes.push({ index: lowerIndex, label: ALL_NOTES[lowerIndex].name + ' (↓' + intervalName + ')' });
-        }
-    } else if (actualDirection === 'both') {
-        // 先上后下：根音 → 上 → 根音 → 下
-        notes.push({ index: rootIndex, label: ALL_NOTES[rootIndex].name + ' (根音)' });
-        if (upperIndex < ALL_NOTES.length) {
-            notes.push({ index: upperIndex, label: ALL_NOTES[upperIndex].name + ' (↑' + intervalName + ')' });
-        }
-        notes.push({ index: rootIndex, label: ALL_NOTES[rootIndex].name + ' (根音)' });
-        if (lowerIndex >= 0) {
-            notes.push({ index: lowerIndex, label: ALL_NOTES[lowerIndex].name + ' (↓' + intervalName + ')' });
-        }
+    if (needsUp) {
+        notes.push(rootNote, { index: upperIndex, label: ALL_NOTES[upperIndex].name + ' (↑' + intervalName + ')' });
     }
-
-    // fallback: 如果上行/下行超出范围，反转方向
-    if (notes.length === 0) {
-        notes.push({ index: rootIndex, label: ALL_NOTES[rootIndex].name + ' (根音)' });
-        const fallbackIdx = actualDirection === 'up' ? lowerIndex : upperIndex;
-        if (fallbackIdx >= 0 && fallbackIdx < ALL_NOTES.length) {
-            const fallbackDir = actualDirection === 'up' ? '↓' : '↑';
-            notes.push({ index: fallbackIdx, label: ALL_NOTES[fallbackIdx].name + ' (' + fallbackDir + intervalName + ')' });
-        }
+    if (needsDown) {
+        notes.push(rootNote, { index: lowerIndex, label: ALL_NOTES[lowerIndex].name + ' (↓' + intervalName + ')' });
     }
 
     return { notes, intervalName, direction: actualDirection };
@@ -1765,114 +1818,99 @@ function getIntervalRefNotes() {
  * 播放八度参考音阶
  * 根据用户选择的参考模式播放不同的参考音集合
  */
+function stopCurrentNote() {
+    if (!currentPlayingSource) return;
+    try { currentPlayingSource.stop(); } catch (e) {}
+    currentPlayingSource = null;
+}
+
+function clearReferenceKey(run) {
+    if (run.key) run.key.classList.remove('highlight');
+    if (run.label) run.label.remove();
+    run.key = null;
+    run.label = null;
+}
+
+function cancelReferencePlayback() {
+    const run = referencePlayback;
+    if (!run) return;
+    referencePlayback = null;
+    clearReferenceKey(run);
+    stopCurrentNote();
+    document.getElementById('btnPlayOctave').disabled = false;
+    const hint = document.getElementById('hintArea');
+    if (hint.innerHTML === run.message) hint.textContent = '参考音已停止，可重听目标音或继续答题。';
+}
+
 async function playOctaveHint() {
+    if (currentMode !== 'training' || referencePlayback) return;
+    const hint = document.getElementById('hintArea');
+    const button = document.getElementById('btnPlayOctave');
     if (!currentAnswer) {
-        document.getElementById('hintArea').innerHTML =
-            '<span class="hint-wrong">请先点击「出题」!</span>';
+        hint.innerHTML = '<span class="hint-wrong">请先点击「出题」!</span>';
         return;
     }
 
-    const speed = parseInt(document.getElementById('octaveSpeed').value);
+    const speed = Number(document.getElementById('octaveSpeed').value);
     const mode = document.getElementById('octaveRefMode').value;
+    if (mode === 'none') return;
 
     const modeNames = {
-        chromatic: '完整半音阶',
-        diatonic: '自然音阶',
-        context: '上下文窗口',
-        tonic: '主音参考',
-        standardA: '标准A参考',
-        interval: '音程参考'
+        chromatic: '完整半音阶', diatonic: '自然音阶', context: '上下文窗口',
+        tonic: '主音参考', standardA: '标准A参考'
     };
-
-    // 禁用按钮防止重复触发
-    document.getElementById('btnPlayOctave').disabled = true;
-
-    if (mode === 'interval') {
-        // ====== 音程参考模式：特殊播放逻辑 ======
-        // 使用缓存的音程参考数据，避免重听时重新随机
-        if (!cachedIntervalRefNotes) {
-            cachedIntervalRefNotes = getIntervalRefNotes();
-        }
+    const isInterval = mode === 'interval';
+    let indices;
+    let description;
+    if (isInterval) {
+        if (!cachedIntervalRefNotes) cachedIntervalRefNotes = getIntervalRefNotes();
         const intervalData = cachedIntervalRefNotes;
-        if (!intervalData || intervalData.notes.length === 0) {
-            document.getElementById('hintArea').innerHTML =
-                '<span class="hint-wrong">⚠️ 无法生成音程参考，请检查设置</span>';
-            document.getElementById('btnPlayOctave').disabled = false;
-            return;
-        }
-
-        // 自动滚动钢琴键盘到参考音区间
-        scrollPianoToRange(intervalData.notes.map(n => n.index));
-
+        indices = intervalData?.notes.map(n => n.index);
         const dirLabel = { up: '上行', down: '下行', both: '先上后下' };
-        document.getElementById('hintArea').innerHTML =
-            `<span class="hint-info">🎼 正在播放音程参考：${intervalData.intervalName}（${dirLabel[intervalData.direction] || ''}）...</span>`;
+        if (intervalData) description = `音程参考：${intervalData.intervalName}（${dirLabel[intervalData.direction] || ''}）`;
+    } else {
+        if (!cachedOctaveRefNotes) cachedOctaveRefNotes = getOctaveRefNotes();
+        indices = cachedOctaveRefNotes;
+        if (Array.isArray(indices)) description = `${modeNames[mode]}参考（${indices.length}个音）`;
+    }
+    if (!Array.isArray(indices) || !indices.length) {
+        hint.innerHTML = '<span class="hint-wrong">⚠️ 无法生成参考音，请检查设置</span>';
+        return;
+    }
 
-        for (const noteInfo of intervalData.notes) {
-            const note = ALL_NOTES[noteInfo.index];
-            playNote(note.midi, 1.2);
+    const run = { midi: currentAnswer.midi, key: null, label: null, message: '' };
+    referencePlayback = run;
+    button.disabled = true;
+    scrollPianoToRange(indices);
+    hint.innerHTML = `<span class="hint-info">🎼 正在播放${description}...</span>`;
+    run.message = hint.innerHTML;
 
-            const keyEl = document.querySelector(`[data-index="${noteInfo.index}"]`);
-            if (keyEl) keyEl.classList.add('highlight');
-            showNoteName(noteInfo.index, true);
+    try {
+        for (const idx of indices) {
+            if (!playNote(ALL_NOTES[idx].midi, isInterval ? 1.2 : 0.8)) {
+                hint.textContent = '参考音未能完整播放。重试加载后可以重新播放参考。';
+                return;
+            }
+            run.key = document.querySelector(`[data-index="${idx}"]`);
+            if (run.key) run.key.classList.add('highlight');
+            run.label = showNoteName(idx, true);
 
-            await sleep(speed + 200);  // 音程参考稍慢一点，让学生听清
-
-            if (keyEl) keyEl.classList.remove('highlight');
-            hideNoteName(noteInfo.index);
+            await sleep(speed + (isInterval ? 200 : 0));
+            if (referencePlayback !== run) return;
+            clearReferenceKey(run);
         }
 
-        document.getElementById('btnPlayOctave').disabled = false;
-        document.getElementById('hintArea').innerHTML =
-            `<span class="hint-info">🎵 音程参考（${intervalData.intervalName}）播放完毕，现在重听目标音来判断吧！</span>`;
-
+        hint.innerHTML = `<span class="hint-info">🎵 ${description}播放完毕，接下来重播目标音。</span>`;
+        run.message = hint.innerHTML;
         await sleep(300);
-        playNote(currentAnswer.midi);
-        return;
+        if (referencePlayback === run) playNote(run.midi);
+    } finally {
+        if (referencePlayback === run) {
+            clearReferenceKey(run);
+            referencePlayback = null;
+            button.disabled = false;
+        }
     }
-
-    // ====== 其他模式：通用播放逻辑 ======
-    // 使用缓存的参考音列表，避免重听时重新随机起始位置
-    if (!cachedOctaveRefNotes) {
-        cachedOctaveRefNotes = getOctaveRefNotes();
-    }
-    const refNotes = cachedOctaveRefNotes;
-
-    if (!Array.isArray(refNotes) || refNotes.length === 0) {
-        document.getElementById('hintArea').innerHTML =
-            '<span class="hint-wrong">⚠️ 无法生成参考音阶，请检查设置</span>';
-        document.getElementById('btnPlayOctave').disabled = false;
-        return;
-    }
-
-    // 自动滚动钢琴键盘到参考音区间
-    scrollPianoToRange(refNotes);
-
-    document.getElementById('hintArea').innerHTML =
-        `<span class="hint-info">🎼 正在播放${modeNames[mode]}参考（${refNotes.length}个音）...</span>`;
-
-    // 依次播放并高亮 + 显示音名
-    for (const idx of refNotes) {
-        const note = ALL_NOTES[idx];
-        playNote(note.midi, 0.8);
-
-        const keyEl = document.querySelector(`[data-index="${idx}"]`);
-        if (keyEl) keyEl.classList.add('highlight');
-        showNoteName(idx, true);
-
-        await sleep(speed);
-
-        if (keyEl) keyEl.classList.remove('highlight');
-        hideNoteName(idx);
-    }
-
-    document.getElementById('btnPlayOctave').disabled = false;
-    document.getElementById('hintArea').innerHTML =
-        `<span class="hint-info">🎵 ${modeNames[mode]}参考播放完毕，现在重听目标音来判断吧！</span>`;
-
-    // 自动重播目标音
-    await sleep(300);
-    playNote(currentAnswer.midi);
 }
 
 function flashKey(index) {
@@ -1920,6 +1958,7 @@ function onKeyClick(noteIndex) {
     }
 
     if (!currentAnswer) return;
+    cancelReferencePlayback();
 
     // 已答对后，解锁键盘允许自由弹奏（可以对比听各个音）
     if (isAnswered) {
@@ -2009,7 +2048,8 @@ function onKeyClick(noteIndex) {
         document.getElementById('hintArea').innerHTML =
             `<span class="hint-wrong">${hintText}（可点击错误按键重复听，再点其他键继续猜）</span>`;
 
-        addHistory(`❌ 答案: ${currentAnswer.name}, 你选: ${clickedNote.name}`, false);
+        // 本题还可继续猜，练习记录不能抢先揭示正确答案。
+        addHistory(`❌ 选错: ${clickedNote.name}`, false);
 
         // 不标记为已作答，允许继续猜
     }
@@ -2017,6 +2057,7 @@ function onKeyClick(noteIndex) {
 
 function showAnswer() {
     if (!currentAnswer) return;
+    cancelReferencePlayback();
 
     isAnswered = true;
     lastWrongIndex = null;
@@ -2157,6 +2198,9 @@ function setupVelocityControls() {
 
     function update() {
         const mode = modeSelect.value;
+        cancelReferencePlayback();
+        cachedOctaveRefNotes = null;
+        cachedIntervalRefNotes = null;
         fixedGroup.style.display = mode === 'fixed' ? 'flex' : 'none';
         if (mode === 'random') {
             descEl.textContent = `🎲 每次播放随机选择力度 (${VELOCITY_LAYERS.join(', ')})`;
@@ -2243,7 +2287,10 @@ const KEYBOARD_MAP = {
 };
 
 function shiftFreeplayOctave(delta) {
-    freeplayOctave = Math.max(0, Math.min(8, freeplayOctave + delta));
+    const next = Math.max(0, Math.min(8, freeplayOctave + delta));
+    if (next === freeplayOctave) return;
+    releaseFreeplayKeys();
+    freeplayOctave = next;
     document.getElementById('freeplayOctave').textContent = freeplayOctave;
 }
 
@@ -2258,17 +2305,15 @@ function freeplayNoteOn(code) {
     if (midi < 21 || midi > 108) return; // 超出钢琴范围
 
     // 找到键盘上对应的键
+    const result = playNote(midi, 5.0, true);
+    if (!result) return;
     const noteIdx = ALL_NOTES.findIndex(n => n.midi === midi);
     const keyEl = noteIdx >= 0 ? document.querySelector(`[data-index="${noteIdx}"]`) : null;
     if (keyEl) keyEl.classList.add('highlight');
     // 显示音名（持久，直到松键时移除）
     if (noteIdx >= 0) showNoteName(noteIdx, true);
 
-    // 播放，较长持续时间（会在keyup时手动停止）
-    const result = playNote(midi, 5.0, true);
-    if (result) {
-        activeKeySources[code] = { ...result, noteIdx };
-    }
+    activeKeySources[code] = { ...result, noteIdx };
 }
 
 function freeplayNoteOff(code) {
@@ -2291,6 +2336,10 @@ function freeplayNoteOff(code) {
     if (active.noteIdx >= 0) hideNoteName(active.noteIdx);
 
     delete activeKeySources[code];
+}
+
+function releaseFreeplayKeys() {
+    Object.keys(activeKeySources).forEach(freeplayNoteOff);
 }
 
 // ========== 键盘快捷键 ==========
@@ -2328,6 +2377,7 @@ document.addEventListener('keydown', (e) => {
 
     // 自由弹奏模式的键盘输入
     if (currentMode === 'freeplay') {
+        if (e.altKey || e.ctrlKey || e.metaKey || e.target?.isContentEditable) return;
         if (e.code === 'KeyZ') {
             shiftFreeplayOctave(-1);
             return;
@@ -2371,10 +2421,9 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('keyup', (e) => {
-    if (currentMode === 'freeplay' && KEYBOARD_MAP[e.code] !== undefined) {
-        freeplayNoteOff(e.code);
-    }
+    if (activeKeySources[e.code]) freeplayNoteOff(e.code);
 });
+window.addEventListener('blur', releaseFreeplayKeys);
 
 // ========== 统计 / 持久化 / 进步曲线 ==========
 
@@ -2545,18 +2594,19 @@ function getSettingsSnapshot() {
 
 function loadState() {
     try {
-        return JSON.parse(localStorage.getItem(LS_KEY)) || {};
+        const raw = localStorage.getItem(LS_KEY);
+        return raw ? parseProgress(raw) : {};
     } catch (e) {
         return {};
     }
 }
 
-function saveState() {
+function getProgressState() {
     // 限制历史数组长度，防止 localStorage 膨胀与序列化变慢（曲线只需看趋势）
     if (resultHistory.length > 500) resultHistory = resultHistory.slice(-500);
     if (pitchJndHistory.length > 500) pitchJndHistory = pitchJndHistory.slice(-500);
     if (pitchResidualHistory.length > 500) pitchResidualHistory = pitchResidualHistory.slice(-500);
-    const state = {
+    return {
         settings: getSettingsSnapshot(),
         stats: { correctCount, wrongCount, totalCount, streakCount, maxStreak },
         noteStats,
@@ -2570,8 +2620,11 @@ function saveState() {
             reversed: pitchReversed, noteStats: pitchNoteStats
         }
     };
+}
+
+function saveState() {
     try {
-        localStorage.setItem(LS_KEY, JSON.stringify(state));
+        localStorage.setItem(LS_KEY, JSON.stringify(getProgressState()));
     } catch (e) {}
 }
 
@@ -2582,7 +2635,11 @@ function applySavedSettings(s) {
         const el = document.getElementById(id);
         if (!el) return;
         if (el.type === 'checkbox') el.checked = s[id];
-        else el.value = s[id];
+        else {
+            // 不同部署可能只装了部分力度层，保留当前控件的可用默认值。
+            if (el.tagName === 'SELECT' && !Array.from(el.options).some(option => option.value === s[id])) return;
+            el.value = s[id];
+        }
         el.dispatchEvent(new Event('change'));
     });
 }
@@ -2608,7 +2665,7 @@ const TUNE_SCALE = 1.0;  // 滑块每单位对应的音分（step=0.25 → 最�
 function midiToFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
 
 // 切换子模式（偏差方向 / 调准练习）
-function setPitchSubMode(mode) {
+function setPitchSubMode(mode, persist = true) {
     pitchSubMode = mode;
     document.querySelectorAll('.pitch-submode-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.submode === mode);
@@ -2625,7 +2682,7 @@ function setPitchSubMode(mode) {
     resetPitchRound();
     updatePitchStats();
     drawPitchCurve();
-    saveState();
+    if (persist) saveState();
 }
 
 // 启用/禁用答题控件（含调准滑块）
@@ -2641,6 +2698,7 @@ function setPitchAnswerEnabled(enabled) {
 
 // 清空当前题状态（不影响累计统计）
 function resetPitchRound() {
+    stopPitchPlayback();
     pitchQuestionActive = false;
     pitchScored = false;
     setPitchAnswerEnabled(false);
@@ -2656,6 +2714,18 @@ function newPitchQuestion() {
     if (now - lastPitchQuestionAt < 400) return;
     lastPitchQuestionAt = now;
 
+    const idx = pickWeightedPitchNote();
+    const nextNote = ALL_NOTES[idx];
+    const requestedLayer = getVelocityLayer();
+    const { sampleName } = findNearestSample(nextNote.midi);
+    if (!loadedLayers.has(requestedLayer)) loadSingleLayer(requestedLayer);
+    if (!getSampleBuffer(sampleName, requestedLayer)) {
+        const message = '这次没有播放音准练习。重试加载后再出题。';
+        showAudioIssue(requestedLayer, message);
+        document.getElementById('pitchFeedback').textContent = message;
+        return;
+    }
+
     // 跳过计错：上一题已出但未作答时，按答错计入，避免无限换题逃避
     if (pitchQuestionActive && !pitchScored) {
         pitchTotal++; pitchWrong++; pitchStreak = 0;
@@ -2670,10 +2740,11 @@ function newPitchQuestion() {
         }
     }
 
-    // 选基准音：沿用音感训练的音域，按薄弱音区加权
-    const idx = pickWeightedPitchNote();
-    pitchBaseMidi = ALL_NOTES[idx].midi;
-    pitchBaseName = ALL_NOTES[idx].name;
+    pitchBaseMidi = nextNote.midi;
+    pitchBaseName = nextNote.name;
+    // 锁定已解码的采样，避免两音之间刚好完成加载、听到不同的音色。
+    pitchVelocityLayer = [requestedLayer, 'mf', ...VELOCITY_LAYERS]
+        .find(layer => sampleBuffers[layer]?.[sampleName]) || requestedLayer;
 
     if (pitchSubMode === 'direction') {
         const stepCents = PITCH_CENTS_LADDER[pitchLadderIdx];
@@ -2683,7 +2754,7 @@ function newPitchQuestion() {
         // 调准练习：随机隐藏"准点"位置，起点故意走音，避免靠滑块视觉居中作弊
         pitchTrueRaw = 20 + Math.random() * 60;   // 准点在 [20,80]
         const offsetUnits = (Math.random() < 0.5 ? -1 : 1) * (15 + Math.random() * 25); // 起始偏 15~40
-        let startRaw = Math.max(0, Math.min(100, pitchTrueRaw + offsetUnits));
+        const startRaw = Math.round(Math.max(0, Math.min(100, pitchTrueRaw + offsetUnits)) * 4) / 4;
         const slider = document.getElementById('pitchTuneSlider');
         if (slider) slider.value = startRaw;
         pitchTuneCents = (startRaw - pitchTrueRaw) * TUNE_SCALE;
@@ -2705,19 +2776,35 @@ function newPitchQuestion() {
     saveState();
 }
 
+function stopPitchNotes() {
+    for (const source of pitchPlayingSources) {
+        try { source.stop(); } catch (e) {}
+    }
+    pitchPlayingSources = [];
+}
+
+function stopPitchPlayback() {
+    if (pitchStimulusTimer !== null) clearTimeout(pitchStimulusTimer);
+    pitchStimulusTimer = null;
+    stopPitchNotes();
+}
+
+function playPitchNote(duration, cents) {
+    const played = playNote(pitchBaseMidi, duration, true, pitchVelocityLayer, cents);
+    if (played) pitchPlayingSources.push(played.source);
+}
+
 // 播放当前题的声音刺激（出题/重听时用）
 function playPitchStimulus() {
-    if (pitchBaseMidi == null) return;
-    // 清理上一次尚未触发的“第二个音”定时器，避免连点出题/切模式导致声音串味
-    if (pitchStimulusTimer) { clearTimeout(pitchStimulusTimer); pitchStimulusTimer = null; }
-    if (pitchSubMode === 'direction') {
-        playNote(pitchBaseMidi, 1.3, false, null, 0);
-        pitchStimulusTimer = setTimeout(() => playNote(pitchBaseMidi, 1.6, false, null, pitchTargetCents), 900);
-    } else {
-        // 调准默认：先放基准音，再放当前调整音（先后对比）
-        playNote(pitchBaseMidi, 1.3, false, null, 0);
-        pitchStimulusTimer = setTimeout(() => playNote(pitchBaseMidi, 1.6, false, null, pitchTuneCents), 900);
-    }
+    if (!pitchQuestionActive || pitchBaseMidi == null) return;
+    stopPitchPlayback();
+    const cents = pitchSubMode === 'direction' ? pitchTargetCents : pitchTuneCents;
+    playPitchNote(1.3, 0);
+    pitchStimulusTimer = setTimeout(() => {
+        pitchStimulusTimer = null;
+        stopPitchNotes();
+        playPitchNote(1.6, cents);
+    }, 900);
 }
 
 function replayPitch() {
@@ -2728,18 +2815,21 @@ function replayPitch() {
 // 调准：单独重听基准音
 function playPitchRef() {
     if (!pitchQuestionActive || pitchBaseMidi == null) return;
-    playNote(pitchBaseMidi, 1.8, false, null, 0);
+    stopPitchPlayback();
+    playPitchNote(1.8, 0);
 }
 // 调准：单独试听当前调整音
 function playPitchAdjusted() {
     if (!pitchQuestionActive || pitchBaseMidi == null) return;
-    playNote(pitchBaseMidi, 1.8, false, null, pitchTuneCents);
+    stopPitchPlayback();
+    playPitchNote(1.8, pitchTuneCents);
 }
 // 调准：两音同时听（判断是否和谐 / 有无拍频）
 function playPitchBoth() {
     if (!pitchQuestionActive || pitchBaseMidi == null) return;
-    playNote(pitchBaseMidi, 2.4, true, null, 0);
-    playNote(pitchBaseMidi, 2.4, true, null, pitchTuneCents);
+    stopPitchPlayback();
+    playPitchNote(2.4, 0);
+    playPitchNote(2.4, pitchTuneCents);
 }
 
 // 偏差方向作答
@@ -2986,10 +3076,54 @@ function drawPitchCurve() {
 
 // ===================== 练习记录 导出 / 导入 =====================
 
+const PROGRESS_KEYS = ['settings', 'stats', 'noteStats', 'resultHistory', 'pitch'];
+const PROGRESS_MAX_SIZE = 1024 * 1024; // 正常导出即使包含满 500 条历史曲线也远小于此上限
+
+function parseProgress(raw) {
+    const obj = JSON.parse(raw);
+    const isRecord = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+    const count = x => Number.isSafeInteger(x) && x >= 0 && x < Number.MAX_SAFE_INTEGER;
+    const cents = x => typeof x === 'number' && Number.isFinite(x) && x >= 0;
+    const history = (x, check) => Array.isArray(x) && x.length <= 500 && x.every(check);
+    const fields = (x, names, check) => names.every(name => x[name] === undefined || check(x[name]));
+    const isNote = new Set(ALL_NOTES.map(n => n.name));
+    const noteMap = (x, validate) => isRecord(x) && Object.entries(x)
+        .every(([name, values]) => isNote.has(name) && isRecord(values) && validate(values));
+    const invalid = () => { throw new Error('Invalid practice data'); };
+
+    // 保留旧版中不存在的可选字段，但拒绝无关 JSON、数组和无法读入的字段类型。
+    if (!isRecord(obj) || !PROGRESS_KEYS.some(key => Object.hasOwn(obj, key))) invalid();
+    if (obj.settings !== undefined) {
+        if (!isRecord(obj.settings) || !SETTING_IDS.every(id => {
+            const value = obj.settings[id];
+            if (value === undefined) return true;
+            return id === 'smartWeight' || id === 'smartPitchWeight'
+                ? typeof value === 'boolean' : typeof value === 'string';
+        })) invalid();
+    }
+    if (obj.stats !== undefined && (!isRecord(obj.stats) ||
+        !fields(obj.stats, ['correctCount', 'wrongCount', 'totalCount', 'streakCount', 'maxStreak'], count))) invalid();
+    if (obj.noteStats !== undefined && !noteMap(obj.noteStats, v => count(v.correct) && count(v.wrong))) invalid();
+    if (obj.resultHistory !== undefined && !history(obj.resultHistory, v => v === 0 || v === 1)) invalid();
+    if (obj.pitch !== undefined) {
+        const p = obj.pitch;
+        if (!isRecord(p) || !fields(p, ['correct', 'wrong', 'total', 'streak'], count) ||
+            !fields(p, ['minJnd', 'bestResidual'], v => v === null || cents(v)) ||
+            (p.ladderIdx !== undefined && (!count(p.ladderIdx) || p.ladderIdx >= PITCH_CENTS_LADDER.length)) ||
+            (p.subMode !== undefined && !['direction', 'tuning'].includes(p.subMode)) ||
+            (p.reversed !== undefined && typeof p.reversed !== 'boolean') ||
+            (p.jndHistory !== undefined && !history(p.jndHistory, cents)) ||
+            (p.residualHistory !== undefined && !history(p.residualHistory, cents)) ||
+            (p.noteStats !== undefined && !noteMap(p.noteStats,
+                v => count(v.dirN) && count(v.dirWrong) && count(v.tuneN) && cents(v.tuneResid)))) invalid();
+    }
+    return obj;
+}
+
 // 导出当前全部练习记录（含设置、统计、薄弱音分布、音准数据）为 JSON 文件
 function exportProgress() {
-    saveState(); // 先把内存状态落盘，保证导出最新
-    const data = localStorage.getItem(LS_KEY) || '{}';
+    // 直接从当前内存导出，浏览器限制本地存储时也能备份练习。
+    const data = JSON.stringify(getProgressState());
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -3005,20 +3139,32 @@ function exportProgress() {
 function importProgress(input) {
     const file = input.files && input.files[0];
     if (!file) return;
+    input.value = '';
+    if (file.size > PROGRESS_MAX_SIZE) {
+        alert('导入失败：文件过大，请选择本工具导出的 JSON 记录文件。');
+        return;
+    }
     const reader = new FileReader();
+    reader.onerror = () => alert('导入失败：无法读取文件，现有练习记录未改动。');
     reader.onload = e => {
+        let obj;
         try {
-            const obj = JSON.parse(e.target.result);
-            if (!obj || typeof obj !== 'object') throw new Error('bad');
-            localStorage.setItem(LS_KEY, JSON.stringify(obj));
-            alert('练习记录已导入，页面将刷新以应用。');
-            location.reload();
+            obj = parseProgress(e.target.result);
         } catch (err) {
-            alert('导入失败：文件格式不正确，请选择本工具导出的 JSON 记录文件。');
+            alert('导入失败：文件格式不正确，现有练习记录未改动。');
+            return;
         }
+        if (!confirm('导入会覆盖当前音感和音准练习记录及设置，确定要继续吗？')) return;
+        try {
+            localStorage.setItem(LS_KEY, JSON.stringify(obj));
+        } catch (err) {
+            alert('导入失败：浏览器无法保存练习记录，现有记录未改动。');
+            return;
+        }
+        alert('练习记录已导入，页面将刷新以应用。');
+        location.reload();
     };
     reader.readAsText(file);
-    input.value = '';
 }
 
 // ========== 初始化 ==========
@@ -3062,7 +3208,7 @@ async function init() {
     drawCurve();
     window.addEventListener('resize', drawCurve);
     // 初始化音准模式 UI
-    setPitchSubMode(pitchSubMode);
+    setPitchSubMode(pitchSubMode, false);
     updatePitchStats();
     drawPitchCurve();
     window.addEventListener('resize', drawPitchCurve);

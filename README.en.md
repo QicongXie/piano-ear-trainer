@@ -125,9 +125,11 @@ VELOCITY_LAYERS="mf" bash setup.sh && bash run.sh
 ### Stop / Logs
 
 ```bash
-lsof -i :7860 -t | xargs kill -9   # stop
-tail -f app.log                    # logs
+kill PID         # replace PID with the process ID printed by run.sh
+tail -f app.log  # logs
 ```
+
+If the port is already in use, the script exits without stopping the other process. Try `PORT=7861 bash run.sh` to use a different port.
 
 ## 🛠️ Development & Static Deployment
 

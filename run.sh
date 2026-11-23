@@ -19,22 +19,23 @@ VELOCITY_LAYERS="${VELOCITY_LAYERS:-pp p mp mf f ff}"
 DEFAULT_LOW_NOTE="${DEFAULT_LOW_NOTE:-C4}"
 DEFAULT_HIGH_NOTE="${DEFAULT_HIGH_NOTE:-A6}"
 
-# 杀死之前占用端口的进程
-if lsof -i :${PORT} -t >/dev/null 2>&1; then
-    echo "⚠️  端口 ${PORT} 被占用，正在终止旧进程..."
-    lsof -i :${PORT} -t | xargs kill -9 2>/dev/null
-    sleep 1
-    echo "✅ 旧进程已终止"
+# 端口可能属于无关的进程，不要替用户结束它。
+if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN -t >/dev/null 2>&1; then
+    echo "❌ 端口 ${PORT} 已被占用。请先确认并停止旧服务，或用 PORT=7861 bash run.sh 换一个可用端口。" >&2
+    exit 1
 fi
 
 # 检查 Python 依赖
 echo "🔍 检查依赖..."
-pip install flask -q 2>/dev/null
+if ! python -c 'import flask' >/dev/null 2>&1 && ! python -m pip install flask -q; then
+    echo "❌ 无法安装 Flask，服务未启动。请检查当前 Python 环境和网络。" >&2
+    exit 1
+fi
 
 # 检查采样文件是否已准备（通过检查基础力度 mp 的文件来判断）
 SAMPLES_DIR="${SCRIPT_DIR}/static/samples"
 NEED_PREPARE=false
-if [ ! -d "$SAMPLES_DIR" ] || [ -z "$(ls -A $SAMPLES_DIR 2>/dev/null)" ]; then
+if [ ! -d "$SAMPLES_DIR" ] || [ -z "$(ls -A "$SAMPLES_DIR" 2>/dev/null)" ]; then
     NEED_PREPARE=true
 fi
 
@@ -48,11 +49,14 @@ done
 
 if [ "$NEED_PREPARE" = "true" ]; then
     echo "🎹 正在准备钢琴采样（格式: ${AUDIO_FORMAT}, 力度层: ${VELOCITY_LAYERS}）..."
-    python "${SCRIPT_DIR}/prepare_samples.py" \
+    if ! python "${SCRIPT_DIR}/prepare_samples.py" \
         --source-dir "${SCRIPT_DIR}/SalamanderGrandPianoV3_48khz24bit/48khz24bit" \
         --output-dir "$SAMPLES_DIR" \
         --format "$AUDIO_FORMAT" \
-        --layers $VELOCITY_LAYERS
+        --layers $VELOCITY_LAYERS; then
+        echo "❌ 钢琴采样预处理失败，服务未启动。请检查采样包和 ffmpeg，或先执行 bash setup.sh。" >&2
+        exit 1
+    fi
     echo ""
 fi
 
@@ -85,6 +89,12 @@ echo ""
 # 使用 nohup 后台启动应用
 nohup python "${SCRIPT_DIR}/app.py" $ARGS > "$LOG_FILE" 2>&1 &
 APP_PID=$!
+sleep 1
+if ! kill -0 "$APP_PID" 2>/dev/null; then
+    wait "$APP_PID" 2>/dev/null
+    echo "❌ 服务启动失败，请查看日志：${LOG_FILE}" >&2
+    exit 1
+fi
 echo "✅ 应用已在后台启动，PID: ${APP_PID}"
 echo "📝 查看日志: tail -f ${LOG_FILE}"
 echo "🛑 停止服务: kill ${APP_PID}"

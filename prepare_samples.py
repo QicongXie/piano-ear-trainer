@@ -82,7 +82,6 @@ def main():
                         help='指定要转换的力度层 (如: mp mf f)，不指定则转换全部')
     args = parser.parse_args()
 
-    os.makedirs(args.output_dir, exist_ok=True)
     fmt = args.format
 
     if args.velocity is not None:
@@ -93,13 +92,15 @@ def main():
     else:
         layers = VELOCITY_LAYERS
 
+    files_by_layer = {name: get_note_files(args.source_dir, vel) for name, vel in layers.items()}
+    missing = [name for name, files in files_by_layer.items() if not files]
+    if missing:
+        parser.error(f"在 {args.source_dir} 未找到这些力度层的 WAV 采样：{', '.join(missing)}")
+    os.makedirs(args.output_dir, exist_ok=True)
     total_converted = 0
 
     for layer_name, vel in layers.items():
-        note_files = get_note_files(args.source_dir, vel)
-        if not note_files:
-            print(f"⚠️ 力度 v{vel} ({layer_name}) 未找到采样文件，跳过")
-            continue
+        note_files = files_by_layer[layer_name]
 
         # 如果是单力度模式（兼容旧版），文件名不加力度后缀
         suffix = '' if layer_name == 'single' else f'_{layer_name}'
