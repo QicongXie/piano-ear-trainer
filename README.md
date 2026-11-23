@@ -15,9 +15,11 @@
 
 ## 📸 界面预览
 
+以下为原版界面截图；当前版的模式入口和横屏琴键以正文说明为准。
+
 | 音感训练 | 音准训练（调准练习） |
 |:---:|:---:|
-| <img src="docs/screenshot-main.png" width="420" alt="音感训练"> | <img src="docs/screenshot-pitch.png" width="420" alt="音准训练"> |
+| <img src="docs/screenshot-main.png" width="420" alt="音感训练"> | <img src="docs/screenshot-pitch.png" width="420" alt="音准训练（调准练习）"> |
 
 ## ✨ 功能总览
 
@@ -29,7 +31,7 @@
 
 ### 🎶 听音接龙
 
-从「练耳小游戏」菜单打开。先听一串钢琴音，再用五个音键按顺序复现。每通过一轮，旋律多一个音，从 3 音挑战到 8 音。可以不限次数重听，最高过关轮数保存在当前浏览器，不影响其他训练的成绩。
+从「练耳小游戏」菜单打开。先听一串钢琴音，再用五个音键按顺序复现。每通过一轮，旋律多一个音，从 3 音挑战到 8 音。音域较窄时，可用音键会随之减少。可以不限次数重听，最高过关轮数保存在当前浏览器，不影响其他训练的成绩。
 
 ### 🎼 音程挑战
 
@@ -62,7 +64,7 @@
 
 虚拟 88 键钢琴，支持鼠标、触屏和电脑键盘。电脑键盘直接覆盖连续 34 个半音（默认 C4–A6），不用切换就能跨八度弹和弦。用 `[` / `]` 或页面上的箭头整体移动音域；鼠标和触屏仍可弹全部 88 键。
 
-手机横屏进入自由弹奏会自动放大琴键；也可以点「放大琴键」手动进入。放大时可横滑或用箭头移动一个八度，移动只影响画面，不转调。
+手机上先打开「自由弹奏」，再转到横屏。支持触控的手机在较矮的横屏下会自动放大琴键；竖屏也可点「放大琴键」。放大后可横滑琴键，或点箭头每次移动一个八度；这只移动画面，不会改变键盘映射的音高。点「退出」返回普通视图，保持当前横屏方向时不会再次自动放大。
 
 ### 🧰 通用能力
 
@@ -84,9 +86,21 @@
 
 ## 🚀 本地部署
 
-在线版已可直接使用；若需本地运行完整版（含 Flask 后端与自定义采样）：
+### 本地预览 GitHub Pages 版
 
-### 依赖要求
+在仓库根目录运行以下命令，然后打开 [http://127.0.0.1:7860/](http://127.0.0.1:7860/)：
+
+```bash
+python3 -m http.server 7860 --bind 127.0.0.1 --directory docs
+```
+
+GitHub Pages 使用的就是 `docs/` 里这套前端和 MP3 采样，不需要 Flask 或转换音频。在线版和本地预览分别保存于各自的浏览器站点；切换地址、端口、浏览器或设备时，请用 JSON 导出／导入搬迁记录。
+
+### Flask 本地版
+
+需要自定义采样或启动参数时，再使用 Flask 版：
+
+#### 依赖要求
 
 - **Python 3.6+**
 - **Flask**：Web 服务框架
@@ -102,7 +116,7 @@ brew install ffmpeg git-lfs
 git lfs install
 ```
 
-### 快速开始
+#### 快速开始
 
 ```bash
 # 1. 克隆仓库
@@ -116,7 +130,7 @@ bash setup.sh
 bash run.sh
 ```
 
-服务默认在后台运行，访问地址：`http://0.0.0.0:7860`
+服务默认在后台运行。本机浏览器打开 [http://127.0.0.1:7860/](http://127.0.0.1:7860/)；若只供本机访问，可用 `HOST=127.0.0.1 bash run.sh` 启动。
 
 ### 配置项（环境变量）
 
@@ -171,7 +185,7 @@ cp scripts/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre
 
 ### 部署到 GitHub Pages
 
-`docs/` 已是成品（`index.html` + `samples/`），在仓库 **Settings → Pages → Deploy from a branch → `main` / `docs`** 即可，**无需任何构建步骤**。
+`docs/` 已包含生成的页面和采样。在仓库 **Settings → Pages → Deploy from a branch** 选择发布分支和 `/docs` 文件夹（原仓库使用 `main`）。无需额外构建；分支发布完成前，线上页面不会反映本地改动。
 
 ### 部署到 EdgeOne Pages
 
@@ -200,8 +214,8 @@ piano-ear-trainer/
 ├── docs/                   # GitHub Pages / EdgeOne 静态版（含采样与截图）
 │   ├── index.html          # [生成] 由 build-docs.js 从 templates 生成
 │   ├── samples/            # 供静态站使用的音频采样
-│   ├── screenshot-main.png # 音感训练截图
-│   └── screenshot-pitch.png# 音准训练截图
+│   ├── screenshot-desktop-practice.png         # 练习与模式入口
+│   └── screenshot-mobile-landscape-freeplay.png # 放大琴键
 ├── static/
 │   └── samples/            # [生成] 本地版预处理后的音频采样
 ├── SalamanderGrandPianoV3+20161209_48khz24bit.tar  # [LFS] 原始采样包

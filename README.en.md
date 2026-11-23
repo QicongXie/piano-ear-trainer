@@ -8,8 +8,6 @@
 A web-based piano ear-training tool built on the real Salamander Grand Piano samples. Beyond regular **single-note ear training**, it features dedicated **intonation training** — learning to hear and tune the microtones that fall *between* the piano keys. This is especially useful for players of fretless / continuous-pitch instruments such as violin or erhu who need to polish their intonation.
 
 
-Pitch direction and tuning have separate accuracy, streak, attempt counts, and reset controls. Combined totals from older versions are archived without guessing how to divide them; each exercise keeps its own existing curve and best result.
-
 ## 🌐 Live Demo
 
 No installation needed — open and play (static build on GitHub Pages):
@@ -18,19 +16,23 @@ No installation needed — open and play (static build on GitHub Pages):
 
 ## 📸 Screenshots
 
+These screenshots show the original interface. See the feature guide below for the current exercise menu and landscape keyboard.
+
 | Ear Training | Intonation Training (Tuning) |
 |:---:|:---:|
-| <img src="docs/screenshot-main.png" width="420" alt="Ear Training"> | <img src="docs/screenshot-pitch.png" width="420" alt="Intonation Training"> |
+| <img src="docs/screenshot-main.png" width="420" alt="Ear Training"> | <img src="docs/screenshot-pitch.png" width="420" alt="Intonation Training (Tuning)"> |
 
 ## ✨ Features
 
 Ear Training and Free Play are in the main navigation; Pitch Direction, Tuning, Melody Memory, and Interval Challenge are listed directly in the ear-training mini-games menu. The app includes live stats, progress curves, record export/import, and mobile support. Backups include the Melody Memory best round count. Importing an older backup without that field preserves the existing best.
 
+Pitch Direction and Tuning track accuracy, streaks, and attempts separately and can be reset independently. Older combined totals stay archived; each exercise keeps its existing curve and best result.
+
 The home-screen range applies to every exercise and mini-game, but not Free Play. If an exercise cannot fit in the selected range, it asks you to widen the range instead of playing outside it.
 
 ### 🎶 Melody Memory
 
-Open Melody Memory from the ear-training mini-games menu. Listen to a piano phrase, then reproduce it with five note buttons. Clear a round to add one note, starting at three and ending at eight. Replay as often as you like; your best round count is saved in this browser separately from your other practice stats.
+Open Melody Memory from the ear-training mini-games menu. Listen to a piano phrase, then reproduce it with up to five note buttons, depending on your selected range. Clear a round to add one note, starting at three and ending at eight. Replay as often as you like; your best round count is saved in this browser separately from your other practice stats.
 
 ### 🎼 Interval Challenge
 
@@ -63,7 +65,7 @@ Detunes the real piano samples by exact **cents** (1 semitone = 100 cents) to tr
 
 A virtual 88-key piano playable by mouse, touch, or computer keyboard. The computer keyboard covers 34 consecutive pitches (C4–A6 by default), so you can play chords across octaves without switching. Shift the entire range with `[` / `]` or the on-screen arrows. Mouse and touch can still play all 88 keys.
 
-On phones, Free Play expands automatically in landscape. You can also tap the expand button in portrait. In expanded view, swipe or use the octave scroll buttons to browse all 88 keys without transposing.
+On a phone, open Free Play and turn it sideways. The keyboard expands automatically on touch devices in shorter landscape layouts; in portrait you can also tap the expand button. Swipe or use the arrows to scroll an octave at a time. Scrolling moves the view without changing the pitch of the computer keyboard mapping. Use Exit to return to the regular view; it stays closed until you rotate again.
 
 ### 🧰 General
 
@@ -85,9 +87,21 @@ On phones, Free Play expands automatically in landscape. You can also tap the ex
 
 ## 🚀 Local Setup
 
-The live demo works out of the box. To run the full local version (Flask backend + custom samples):
+### Preview the GitHub Pages build locally
 
-### Requirements
+From the repository root, run the following command, then open [http://127.0.0.1:7860/](http://127.0.0.1:7860/):
+
+```bash
+python3 -m http.server 7860 --bind 127.0.0.1 --directory docs
+```
+
+GitHub Pages serves the same front end and MP3 samples from `docs/`; no Flask or audio conversion is needed. The online and local versions store progress separately. Export and import a JSON backup when switching addresses, ports, browsers, or devices.
+
+### Local Flask build
+
+Use the Flask build if you need custom samples or startup settings:
+
+#### Requirements
 
 - **Python 3.6+**
 - **Flask** — web framework
@@ -103,7 +117,7 @@ brew install ffmpeg git-lfs
 git lfs install
 ```
 
-### Quick Start
+#### Quick Start
 
 ```bash
 # 1. Clone
@@ -117,7 +131,7 @@ bash setup.sh
 bash run.sh
 ```
 
-The service runs in the background at `http://0.0.0.0:7860`.
+The service runs in the background. Open [http://127.0.0.1:7860/](http://127.0.0.1:7860/) in your browser. To limit access to your own computer, start it with `HOST=127.0.0.1 bash run.sh`.
 
 ### Configuration (environment variables)
 
@@ -170,7 +184,7 @@ cp scripts/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre
 
 ### Deploy to GitHub Pages
 
-`docs/` already contains the finished build (`index.html` + `samples/`). Just set **Settings → Pages → Deploy from a branch → `main` / `docs`** — **no build step required**.
+`docs/` already contains the generated page and samples. In **Settings → Pages → Deploy from a branch**, choose the publishing branch and `/docs` folder (the upstream repository uses `main`). No additional build is needed; local changes do not appear online until that branch deploys.
 
 ### Deploy to EdgeOne Pages
 
@@ -199,8 +213,8 @@ piano-ear-trainer/
 ├── docs/                   # GitHub Pages / EdgeOne static build (samples + screenshots)
 │   ├── index.html          # [generated] built from templates by build-docs.js
 │   ├── samples/            # audio samples for the static site
-│   ├── screenshot-main.png # ear training screenshot
-│   └── screenshot-pitch.png# intonation training screenshot
+│   ├── screenshot-desktop-practice.png         # Practice and exercise menu
+│   └── screenshot-mobile-landscape-freeplay.png # Expanded keyboard
 ├── static/
 │   └── samples/            # [generated] preprocessed samples for local version
 ├── SalamanderGrandPianoV3+20161209_48khz24bit.tar  # [LFS] raw sample pack
