@@ -9,7 +9,7 @@ const script = readFileSync(process.env.PIANO_TEMPLATE || join(__dirname, '../te
     .replace('{{ velocity_layers | tojson }}', '["mf"]')
     .replace(/\binit\(\);\s*$/, '');
 
-function harness(initial = '{}') {
+function harness(initial = '{}', oldMelodyBest = null) {
     const settings = new Map();
     const alerts = [];
     let stored = initial;
@@ -25,8 +25,17 @@ function harness(initial = '{}') {
         URL: { createObjectURL: () => 'blob:test', revokeObjectURL() {} },
         Event: class {},
         localStorage: {
-            getItem() { reads++; if (h.blockStorage) throw Error('denied'); return stored; },
-            setItem(key, value) { if (h.blockStorage) throw Error('denied'); writes++; stored = value; },
+            getItem(key) {
+                reads++;
+                if (h.blockStorage) throw Error('denied');
+                return key === 'piano-ear-trainer.melody.best.v1' ? oldMelodyBest : stored;
+            },
+            setItem(key, value) {
+                if (h.blockStorage) throw Error('denied');
+                assert.equal(key, 'pianoEarTrainer_v1');
+                writes++;
+                stored = value;
+            },
         },
         document: {
             addEventListener() {}, getElementById: id => settings.get(id),
@@ -78,7 +87,7 @@ test('compatible partial backup loads only after confirmation, and then reloads 
     assert.equal(h.state().writes, 0);
     h.approve = true;
     h.import(backup);
-    assert.deepEqual(h.state().stored, JSON.parse(backup));
+    assert.deepEqual(h.state().stored, { ...JSON.parse(backup), version: 2, melodyBest: 0 });
     assert.equal(h.state().confirms, 2);
     assert.equal(h.state().reloads, 1);
 });
@@ -180,4 +189,41 @@ test('unknown progress versions and impossible versioned pitch counters are reje
     h.import(JSON.stringify({ version: 2, pitch: { direction, tuning } }));
     h.import(JSON.stringify({ version: 777, settings: {} }));
     assert.equal(h.state().writes, 0);
+});
+
+test('melody best migrates from its old key, exports, and round-trips into a different browser', () => {
+    const original = harness('{}', '6');
+    original.run('restoreMelodyBest(loadState().melodyBest); exportProgress()');
+    assert.equal(original.state().exported.melodyBest, 6);
+    const other = harness();
+    other.import(JSON.stringify(original.state().exported));
+    assert.equal(other.state().writes, 1);
+    other.run('restoreMelodyBest(loadState().melodyBest)');
+    assert.equal(other.run('melodyRound.best'), 6);
+    assert.equal(other.state().reloads, 1);
+});
+
+test('old imports preserve existing best, including a canonical zero, and new backups can explicitly clear it', () => {
+    const h = harness('{}', '4');
+    h.run('restoreMelodyBest(loadState().melodyBest)');
+    const oldBackup = '{"stats":{"correctCount":12}}';
+    h.import(oldBackup);
+    assert.equal(h.state().stored.melodyBest, 4);
+    h.import('{"version":2,"melodyBest":0}');
+    assert.equal(h.state().stored.melodyBest, 0);
+    h.run('restoreMelodyBest(loadState().melodyBest)');
+    assert.equal(h.run('melodyRound.best'), 0); // Must win over the old standalone key.
+    h.import(oldBackup);
+    assert.equal(h.state().stored.melodyBest, 0);
+    h.run('restoreMelodyBest(loadState().melodyBest)');
+    assert.equal(h.run('melodyRound.best'), 0);
+});
+
+test('malformed or unversioned melody best does not replace existing practice data', () => {
+    const h = harness('{"version":2,"melodyBest":4}');
+    for (const val of [-1, 7, 1.5, '5', null, true]) h.import(JSON.stringify({ version: 2, melodyBest: val }));
+    h.import('{"melodyBest":2}');
+    assert.equal(h.state().stored.melodyBest, 4);
+    assert.equal(h.state().writes, 0);
+    assert.equal(h.state().reloads, 0);
 });

@@ -29,7 +29,8 @@ function harness() {
             return { midi, name: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][midi % 12] + (Math.floor(midi / 12) - 1) };
         }),
         VELOCITY_LAYERS: ['mf'],
-        localStorage: { getItem: key => saved[key] ?? null, setItem: (key, value) => { saved[key] = value; } },
+        localStorage: { getItem: key => saved[key] ?? null },
+        saveState() { saved.melodyBest = run('melodyRound.best'); },
         playNote(midi) {
             const source = { stopped: false, stop() { this.stopped = true; }, addEventListener() {} };
             played.push({ midi, source });
@@ -91,7 +92,7 @@ test('melody grows from three to eight notes and remembers best after restart', 
         }
     }
     assert.equal(h.run('melodyRound.phase'), 'won');
-    assert.equal(h.saved['piano-ear-trainer.melody.best.v1'], '6');
+    assert.equal(h.saved.melodyBest, 6);
     h.run('advanceMelody()');
     await h.drain();
     assert.equal(h.run('melodyRound.score'), 0);

@@ -2735,6 +2735,7 @@ function getProgressState() {
         stats: { correctCount, wrongCount, totalCount, streakCount, maxStreak },
         noteStats,
         resultHistory,
+        melodyBest: melodyRound.best,
         pitch: {
             direction: { ...pitchCounters.direction }, tuning: { ...pitchCounters.tuning },
             legacyCombined: pitchLegacyCombined,
@@ -3253,7 +3254,7 @@ function restorePitchProgress(p) {
 
 // ===================== 练习记录 导出 / 导入 =====================
 
-const PROGRESS_KEYS = ['settings', 'stats', 'noteStats', 'resultHistory', 'pitch'];
+const PROGRESS_KEYS = ['settings', 'stats', 'noteStats', 'resultHistory', 'pitch', 'melodyBest'];
 const PROGRESS_MAX_SIZE = 1024 * 1024; // 正常导出即使包含满 500 条历史曲线也远小于此上限
 
 function parseProgress(raw) {
@@ -3271,6 +3272,7 @@ function parseProgress(raw) {
     // 保留旧版中不存在的可选字段，但拒绝无关 JSON、数组和无法读入的字段类型。
     if (!isRecord(obj) || !PROGRESS_KEYS.some(key => Object.hasOwn(obj, key)) ||
         (obj.version !== undefined && obj.version !== 1 && obj.version !== 2)) invalid();
+    if (obj.melodyBest !== undefined && (obj.version !== 2 || !isValidMelodyBest(obj.melodyBest))) invalid();
     if (obj.settings !== undefined) {
         if (!isRecord(obj.settings) || !SETTING_IDS.every(id => {
             const value = obj.settings[id];
@@ -3339,7 +3341,15 @@ function importProgress(input) {
             alert('导入失败：文件格式不正确，现有练习记录未改动。');
             return;
         }
-        if (!confirm('导入会覆盖当前音感和音准练习记录及设置，确定要继续吗？')) return;
+        const melodyNotice = obj.melodyBest === undefined
+            ? '旧备份不含听音接龙最佳轮数，会保留当前纪录。'
+            : '听音接龙最佳轮数将以备份为准。';
+        if (!confirm('导入会覆盖当前音感和音准练习记录及设置。' + melodyNotice + '确定要继续吗？')) return;
+        // 旧备份没有最佳轮数时，把当前值放进同一份记录，避免两个存储键出现半更新。
+        if (obj.melodyBest === undefined) {
+            obj.version = 2;
+            obj.melodyBest = melodyRound.best;
+        }
         try {
             localStorage.setItem(LS_KEY, JSON.stringify(obj));
         } catch (err) {
@@ -3548,7 +3558,7 @@ function chooseMelodyNote(note) {
         ++melodyRound.score;
         if (melodyRound.score > melodyRound.best) {
             melodyRound.best = melodyRound.score;
-            try { localStorage.setItem(MELODY_BEST_KEY, String(melodyRound.best)); } catch (e) {}
+            saveState();
         }
         melodyRound.phase = melodyRound.sequence.length === MELODY_MAX_LENGTH ? 'won' : 'round-won';
     }
@@ -3593,11 +3603,24 @@ function setupGamesMenu() {
     });
 }
 
-function setupMelody() {
+function isValidMelodyBest(value) {
+    return Number.isInteger(value) && value >= 0 && value <= MELODY_MAX_LENGTH - 2;
+}
+
+function restoreMelodyBest(backupBest) {
+    // 显式的 0 也是备份值，不能回退到旧存储，否则导入后会复活旧纪录。
+    if (isValidMelodyBest(backupBest)) {
+        melodyRound.best = backupBest;
+        return;
+    }
     try {
-        const best = Number(localStorage.getItem(MELODY_BEST_KEY));
-        if (Number.isInteger(best) && best >= 0 && best <= MELODY_MAX_LENGTH - 2) melodyRound.best = best;
+        const oldBest = Number(localStorage.getItem(MELODY_BEST_KEY));
+        if (isValidMelodyBest(oldBest)) melodyRound.best = oldBest;
     } catch (e) {}
+}
+
+function setupMelody(backupBest) {
+    restoreMelodyBest(backupBest);
     document.getElementById('melodyAdvance').addEventListener('click', advanceMelody);
     document.getElementById('melodyReplay').addEventListener('click', () => {
         if (['answering', 'interrupted'].includes(melodyRound.phase)) listenToMelody();
@@ -3792,8 +3815,9 @@ function setupInterval() {
 // ========== 初始化 ==========
 
 async function init() {
+    const saved = loadState();
     setupGamesMenu();
-    setupMelody();
+    setupMelody(saved.melodyBest);
     setupInterval();
     populateSelects();
     setupGameRangeListeners();
@@ -3803,7 +3827,6 @@ async function init() {
     setupVelocityControls();
 
     // 恢复本地保存的设置与统计数据
-    const saved = loadState();
     applySavedSettings(saved.settings);
     if (saved.stats) {
         correctCount = saved.stats.correctCount || 0;
