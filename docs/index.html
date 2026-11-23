@@ -412,6 +412,7 @@
             font: 700 12px/1.35 monospace;
             pointer-events: none;
         }
+        .white-key[data-freeplay-key]::after { bottom: 26px; }
         .black-key[data-freeplay-key]::after { bottom: 7px; }
 
         /* 按键时显示的音名标签 */
@@ -435,6 +436,8 @@
             border-radius: 4px;
             padding: 2px 5px;
         }
+        /* 为自由弹奏白键分开常驻音名、快捷键徽标和弹奏音名。 */
+        .white-key[data-freeplay-key] .note-name-label { bottom: 51px; }
         .black-key .note-name-label {
             bottom: 28px;
             left: 50%;
